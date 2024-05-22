@@ -3,8 +3,8 @@ use iced::{
     Column, Command, Container, Element, Length, Row, Settings, Text,
 };
 use image::{io::Reader as ImageReader, GenericImageView};
+use std::convert::TryInto; // TryInto for converting usize to u32
 use rfd::FileDialog; // FileDialog for folder selection
-use std::convert::TryInto; // Import TryInto for converting usize to u32
 
 fn main() -> iced::Result {
     let icon_path = "assets/icon.ico";
@@ -12,7 +12,7 @@ fn main() -> iced::Result {
 
     RustCraft::run(Settings {
         window: window::Settings {
-            size: (640, 360),
+            size: (1087, 533),
             resizable: true,
             decorations: true,
             transparent: false,
@@ -20,7 +20,7 @@ fn main() -> iced::Result {
             icon: Some(icon),
             min_size: Some((640, 360)),
             max_size: None,
-            position: window::Position::Default,
+            position: window::Position::Centered,
         },
         ..Settings::default()
     })
@@ -41,7 +41,8 @@ struct RustCraft {
     minecraft_dir_button: button::State,
     backup_dir_button: button::State,
     schedule_backup_button: button::State,
-    selected_directory: Option<String>,
+    minecraft_directory: Option<String>,
+    backup_directory: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -49,7 +50,8 @@ enum Message {
     MinecraftDirPressed,
     BackupDirPressed,
     ScheduleBackupPressed,
-    DirectorySelected(Option<String>), // Message to handle directory selection
+    MinecraftDirectorySelected(Option<String>),
+    BackupDirectorySelected(Option<String>),
 }
 
 impl Application for RustCraft {
@@ -71,25 +73,39 @@ impl Application for RustCraft {
                 let default_path = "C:\\Users\\User\\AppData\\Roaming\\.minecraft\\saves";
                 let path = FileDialog::new().set_directory(default_path).pick_folder();
 
-                // Convert PathBuf to String
                 Command::perform(
                     async move {
-                        Message::DirectorySelected(path.map(|p| p.to_string_lossy().into_owned()))
+                        Message::MinecraftDirectorySelected(path.map(|p| p.to_string_lossy().into_owned()))
                     },
                     |p| p,
                 )
             }
             Message::BackupDirPressed => {
-                println!("Backup Directory Button Pressed");
-                Command::none()
+                let path = FileDialog::new().pick_folder();
+
+                Command::perform(
+                    async move {
+                        Message::BackupDirectorySelected(path.map(|p| p.to_string_lossy().into_owned()))
+                    },
+                    |p| p,
+                )
             }
             Message::ScheduleBackupPressed => {
-                println!("Schedule Backup Button Pressed");
+                if let (Some(minecraft_dir), Some(backup_dir)) = (&self.minecraft_directory, &self.backup_directory) {
+                    println!("Scheduling backup from {} to {}", minecraft_dir, backup_dir);
+                } else {
+                    println!("Please select both Minecraft and Backup directories");
+                }
                 Command::none()
             }
-            Message::DirectorySelected(path) => {
-                self.selected_directory = path;
-                println!("Selected directory: {:?}", self.selected_directory);
+            Message::MinecraftDirectorySelected(path) => {
+                self.minecraft_directory = path;
+                println!("Selected Minecraft directory: {:?}", self.minecraft_directory);
+                Command::none()
+            }
+            Message::BackupDirectorySelected(path) => {
+                self.backup_directory = path;
+                println!("Selected Backup directory: {:?}", self.backup_directory);
                 Command::none()
             }
         }
@@ -106,7 +122,7 @@ impl Application for RustCraft {
         .width(Length::Units(250));
 
         let minecraft_dir_text = Text::new(
-            self.selected_directory
+            self.minecraft_directory
                 .as_ref()
                 .unwrap_or(&"No directory selected".to_string()),
         )
@@ -120,7 +136,12 @@ impl Application for RustCraft {
         .padding(10)
         .width(Length::Units(250));
 
-        let backup_dir_text = Text::new("Backup directory not set").size(16); // Placeholder text
+        let backup_dir_text = Text::new(
+            self.backup_directory
+                .as_ref()
+                .unwrap_or(&"No directory selected".to_string()),
+        )
+        .size(16);
 
         let schedule_backup_button = Button::new(
             &mut self.schedule_backup_button,
@@ -130,9 +151,6 @@ impl Application for RustCraft {
         .padding(10)
         .width(Length::Units(250));
 
-        let schedule_backup_text = Text::new("Backup not scheduled").size(16); // Placeholder text
-
-        // Columns for each button and its text
         let minecraft_dir_column = Column::new()
             .spacing(10)
             .padding(10)
@@ -151,8 +169,7 @@ impl Application for RustCraft {
             .padding(10)
             .spacing(10)
             .align_items(Alignment::Center)
-            .push(schedule_backup_button)
-            .push(schedule_backup_text);
+            .push(schedule_backup_button);
 
         // Main content layout
         let buttons_column = Column::new()
@@ -162,11 +179,16 @@ impl Application for RustCraft {
             .push(backup_dir_column)
             .push(schedule_backup_column);
 
+        let image_column = Column::new()
+            .align_items(Alignment::Center)
+            .width(Length::FillPortion(1))
+            .push(Image::new("assets/crea.jpeg").width(Length::Fill));
+
         let content = Row::new()
             .align_items(Alignment::Center)
             .spacing(20)
-            .push(Image::new("assets/crea.jpeg"))
-            .push(buttons_column);
+            .push(image_column)
+            .push(buttons_column.width(Length::FillPortion(1)));
 
         Container::new(content)
             .width(Length::Fill)
