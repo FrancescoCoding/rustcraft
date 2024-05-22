@@ -1,0 +1,8 @@
+[package]
+name = "rustcraft"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+iced = { version = "0.4", features = ["image"] }
+image = "0.23"
