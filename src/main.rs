@@ -3,8 +3,10 @@ use iced::{
     Column, Command, Container, Element, Length, Row, Settings, Text,
 };
 use image::{io::Reader as ImageReader, GenericImageView};
-use std::convert::TryInto; // TryInto for converting usize to u32
-use rfd::FileDialog; // FileDialog for folder selection
+use rfd::FileDialog;
+use std::convert::TryInto; // TryInto for converting usize to u32 // FileDialog for folder selection
+
+extern crate dirs;
 
 fn main() -> iced::Result {
     let icon_path = "assets/icon.ico";
@@ -75,23 +77,31 @@ impl Application for RustCraft {
 
                 Command::perform(
                     async move {
-                        Message::MinecraftDirectorySelected(path.map(|p| p.to_string_lossy().into_owned()))
+                        Message::MinecraftDirectorySelected(
+                            path.map(|p| p.to_string_lossy().into_owned()),
+                        )
                     },
                     |p| p,
                 )
             }
             Message::BackupDirPressed => {
-                let path = FileDialog::new().pick_folder();
+                // Change default_path to the desktop path
+                let default_path = dirs::desktop_dir().expect("Failed to find desktop directory");
+                let path = FileDialog::new().set_directory(default_path).pick_folder();
 
                 Command::perform(
                     async move {
-                        Message::BackupDirectorySelected(path.map(|p| p.to_string_lossy().into_owned()))
+                        Message::BackupDirectorySelected(
+                            path.map(|p| p.to_string_lossy().into_owned()),
+                        )
                     },
                     |p| p,
                 )
             }
             Message::ScheduleBackupPressed => {
-                if let (Some(minecraft_dir), Some(backup_dir)) = (&self.minecraft_directory, &self.backup_directory) {
+                if let (Some(minecraft_dir), Some(backup_dir)) =
+                    (&self.minecraft_directory, &self.backup_directory)
+                {
                     println!("Scheduling backup from {} to {}", minecraft_dir, backup_dir);
                 } else {
                     println!("Please select both Minecraft and Backup directories");
@@ -100,7 +110,10 @@ impl Application for RustCraft {
             }
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
-                println!("Selected Minecraft directory: {:?}", self.minecraft_directory);
+                println!(
+                    "Selected Minecraft directory: {:?}",
+                    self.minecraft_directory
+                );
                 Command::none()
             }
             Message::BackupDirectorySelected(path) => {
