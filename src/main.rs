@@ -1,10 +1,10 @@
 use iced::{
-    button, executor, widget::Image, window, window::icon::Icon, Alignment, Application, Button,
-    Column, Command, Container, Element, Length, Row, Settings, Text,
+    button, executor, slider, widget::Image, window, window::icon::Icon, Alignment, Application,
+    Button, Column, Command, Container, Element, Length, Row, Settings, Slider, Text,
 };
 use image::{io::Reader as ImageReader, GenericImageView};
-use std::convert::TryInto; // TryInto for converting usize to u32
 use rfd::FileDialog; // FileDialog for folder selection
+use std::convert::TryInto; // TryInto for converting usize to u32
 
 extern crate dirs;
 
@@ -43,6 +43,8 @@ struct RustCraft {
     minecraft_dir_button: button::State,
     backup_dir_button: button::State,
     schedule_backup_button: button::State,
+    schedule_slider: slider::State,
+    schedule_hours: i32,
     minecraft_directory: Option<String>,
     backup_directory: Option<String>,
 }
@@ -52,6 +54,7 @@ enum Message {
     MinecraftDirPressed,
     BackupDirPressed,
     ScheduleBackupPressed,
+    ScheduleChanged(i32),
     MinecraftDirectorySelected(Option<String>),
     BackupDirectorySelected(Option<String>),
 }
@@ -83,6 +86,11 @@ impl Application for RustCraft {
                     },
                     |p| p,
                 )
+            }
+            Message::ScheduleChanged(hours) => {
+                self.schedule_hours = hours;
+                println!("Schedule set for every {} hours", self.schedule_hours);
+                Command::none()
             }
             Message::BackupDirPressed => {
                 let default_path = dirs::desktop_dir().expect("Failed to find desktop directory");
@@ -124,7 +132,6 @@ impl Application for RustCraft {
     }
 
     fn view(&mut self) -> Element<Self::Message> {
-        // Define the buttons and their text displays
         let minecraft_dir_button = Button::new(
             &mut self.minecraft_dir_button,
             Text::new("Select Minecraft Directory"),
@@ -163,6 +170,18 @@ impl Application for RustCraft {
         .padding(10)
         .width(Length::Units(250));
 
+        let schedule_slider = Slider::new(
+            &mut self.schedule_slider,
+            0..=24,
+            self.schedule_hours,
+            Message::ScheduleChanged,
+        )
+        .step(1)
+        .width(Length::Units(200));
+
+        let schedule_text =
+            Text::new(format!("Schedule every {} hours", self.schedule_hours)).size(16);
+
         let minecraft_dir_column = Column::new()
             .spacing(10)
             .padding(10)
@@ -177,6 +196,14 @@ impl Application for RustCraft {
             .push(backup_dir_button)
             .push(backup_dir_text);
 
+        let schedule_slider_column = Column::new()
+            .padding(10)
+            .spacing(10)
+            .align_items(Alignment::Center)
+            .push(Text::new("Select Backup Frequency"))
+            .push(schedule_slider)
+            .push(schedule_text);
+
         let schedule_backup_column = Column::new()
             .padding(10)
             .spacing(10)
@@ -189,6 +216,7 @@ impl Application for RustCraft {
             .spacing(20)
             .push(minecraft_dir_column)
             .push(backup_dir_column)
+            .push(schedule_slider_column)
             .push(schedule_backup_column);
 
         let image_column = Column::new()
