@@ -4,9 +4,14 @@ use iced::{
 };
 use image::{io::Reader as ImageReader, GenericImageView};
 use rfd::FileDialog; // FileDialog for folder selection
+use serde_json::{json, Value};
 use std::convert::TryInto; // TryInto for converting usize to u32
+use std::fs;
+use std::path::Path;
 
 extern crate dirs;
+
+const CONFIG_FILE: &str = "config.json";
 
 fn main() -> iced::Result {
     let icon_path = "assets/icon.ico";
@@ -31,11 +36,41 @@ fn main() -> iced::Result {
 fn load_icon(path: &str) -> Result<Icon, image::ImageError> {
     let img = ImageReader::open(path)?.decode()?;
     let rgba = img.to_rgba8();
-    let width = img.width().try_into().expect("Width out of range");
-    let height = img.height().try_into().expect("Height out of range");
+    let width = img.width().try_into().unwrap();
+    let height = img.height().try_into().unwrap();
     let raw_data = rgba.into_raw();
-    let icon = Icon::from_rgba(raw_data, width, height).expect("Failed to create icon");
-    Ok(icon)
+    Ok(Icon::from_rgba(raw_data, width, height).unwrap())
+}
+
+fn save_configuration(
+    minecraft_dir: &Option<String>,
+    backup_dir: &Option<String>,
+    backup_frequency: i32,
+) -> std::io::Result<()> {
+    let data = json!({
+        "minecraft_directory": minecraft_dir,
+        "backup_directory": backup_dir,
+        "backup_frequency": backup_frequency
+    });
+    fs::write(CONFIG_FILE, serde_json::to_string_pretty(&data)?)
+}
+
+fn load_configuration() -> (Option<String>, Option<String>, i32) {
+    let path = Path::new(CONFIG_FILE);
+    let mut backup_frequency = 24; // Default backup frequency in hours
+    let (minecraft_dir, backup_dir) = if path.exists() {
+        let data = fs::read_to_string(path).unwrap();
+        let json: Value = serde_json::from_str(&data).unwrap();
+        let minecraft_dir = json["minecraft_directory"].as_str().map(String::from);
+        let backup_dir = json["backup_directory"].as_str().map(String::from);
+        if let Some(freq) = json["backup_frequency"].as_i64() {
+            backup_frequency = freq as i32;
+        }
+        (minecraft_dir, backup_dir)
+    } else {
+        (None, None)
+    };
+    (minecraft_dir, backup_dir, backup_frequency)
 }
 
 #[derive(Default)]
@@ -65,7 +100,16 @@ impl Application for RustCraft {
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Self::Message>) {
-        (Self::default(), Command::none())
+        let (minecraft_directory, backup_directory, schedule_hours) = load_configuration();
+        (
+            Self {
+                minecraft_directory,
+                backup_directory,
+                schedule_hours,
+                ..Self::default()
+            },
+            Command::none(),
+        )
     }
 
     fn title(&self) -> String {
@@ -89,7 +133,13 @@ impl Application for RustCraft {
             }
             Message::ScheduleChanged(hours) => {
                 self.schedule_hours = hours;
-                println!("Schedule set for every {} hours", self.schedule_hours);
+                if let Err(e) = save_configuration(
+                    &self.minecraft_directory,
+                    &self.backup_directory,
+                    self.schedule_hours,
+                ) {
+                    println!("Error saving configuration: {}", e);
+                }
                 Command::none()
             }
             Message::BackupDirPressed => {
@@ -117,6 +167,12 @@ impl Application for RustCraft {
             }
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
+                save_configuration(
+                    &self.minecraft_directory,
+                    &self.backup_directory,
+                    self.schedule_hours,
+                )
+                .unwrap();
                 println!(
                     "Selected Minecraft directory: {:?}",
                     self.minecraft_directory
@@ -125,6 +181,12 @@ impl Application for RustCraft {
             }
             Message::BackupDirectorySelected(path) => {
                 self.backup_directory = path;
+                save_configuration(
+                    &self.minecraft_directory,
+                    &self.backup_directory,
+                    self.schedule_hours,
+                )
+                .unwrap();
                 println!("Selected Backup directory: {:?}", self.backup_directory);
                 Command::none()
             }
