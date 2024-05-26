@@ -5,7 +5,6 @@ use iced::{
 use image::{io::Reader as ImageReader, GenericImageView};
 use rfd::FileDialog; // FileDialog for folder selection
 use serde_json::{json, Value};
-use std::convert::TryInto; // TryInto for converting usize to u32
 use std::fs;
 use std::path::Path;
 
@@ -36,8 +35,8 @@ fn main() -> iced::Result {
 fn load_icon(path: &str) -> Result<Icon, image::ImageError> {
     let img = ImageReader::open(path)?.decode()?;
     let rgba = img.to_rgba8();
-    let width = img.width().try_into().unwrap();
-    let height = img.height().try_into().unwrap();
+    let width = img.width();
+    let height = img.height();
     let raw_data = rgba.into_raw();
     Ok(Icon::from_rgba(raw_data, width, height).unwrap())
 }
