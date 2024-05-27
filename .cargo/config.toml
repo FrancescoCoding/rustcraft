@@ -1,0 +1,7 @@
+# Use LLVM 'lld' linker for better performance on Windows MSVC target.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+# Apply 'lld' linker for the Windows GNU target to enhance linking speed.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
