@@ -76,21 +76,24 @@ fn load_configuration() -> (Option<String>, Option<String>, i32) {
 struct RustCraft {
     minecraft_dir_button: button::State,
     backup_dir_button: button::State,
-    schedule_backup_button: button::State,
     schedule_slider: slider::State,
     schedule_hours: i32,
     minecraft_directory: Option<String>,
     backup_directory: Option<String>,
+    start_button: button::State,
+    stop_button: button::State,
+    active_schedule: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     MinecraftDirPressed,
     BackupDirPressed,
-    ScheduleBackupPressed,
     ScheduleChanged(i32),
     MinecraftDirectorySelected(Option<String>),
     BackupDirectorySelected(Option<String>),
+    StartPressed,
+    StopPressed,
 }
 
 impl Application for RustCraft {
@@ -112,7 +115,7 @@ impl Application for RustCraft {
     }
 
     fn title(&self) -> String {
-        String::from("RustCraft - Backup Scheduler")
+        String::from("RustCraft - Worlds Backup Scheduler")
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
@@ -154,16 +157,6 @@ impl Application for RustCraft {
                     |p| p,
                 )
             }
-            Message::ScheduleBackupPressed => {
-                if let (Some(minecraft_dir), Some(backup_dir)) =
-                    (&self.minecraft_directory, &self.backup_directory)
-                {
-                    println!("Scheduling backup from {} to {}", minecraft_dir, backup_dir);
-                } else {
-                    println!("Please select both Minecraft and Backup directories");
-                }
-                Command::none()
-            }
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
                 save_configuration(
@@ -189,17 +182,48 @@ impl Application for RustCraft {
                 println!("Selected Backup directory: {:?}", self.backup_directory);
                 Command::none()
             }
+            Message::StartPressed => {
+                self.active_schedule = true;
+                println!("Backup schedule activated");
+                Command::none()
+            }
+            Message::StopPressed => {
+                self.active_schedule = false;
+                println!("Backup schedule stopped");
+                Command::none()
+            }
         }
     }
 
     fn view(&mut self) -> Element<Self::Message> {
-        let minecraft_dir_button = Button::new(
+        let mut start_button = Button::new(&mut self.start_button, Text::new("Start")).padding(10);
+
+        // Enable start button only if both directories are selected and the schedule is not active
+        if !self.active_schedule
+            && self.minecraft_directory.is_some()
+            && self.backup_directory.is_some()
+        {
+            start_button = start_button.on_press(Message::StartPressed);
+        }
+
+        let mut stop_button = Button::new(&mut self.stop_button, Text::new("Stop")).padding(10);
+
+        if self.active_schedule {
+            stop_button = stop_button.on_press(Message::StopPressed);
+        }
+
+        let control_buttons = Row::new().spacing(10).push(start_button).push(stop_button);
+
+        let mut minecraft_dir_button = Button::new(
             &mut self.minecraft_dir_button,
             Text::new("Select Minecraft Directory"),
         )
-        .on_press(Message::MinecraftDirPressed)
         .padding(10)
         .width(Length::Units(250));
+
+        if !self.active_schedule {
+            minecraft_dir_button = minecraft_dir_button.on_press(Message::MinecraftDirPressed);
+        }
 
         let minecraft_dir_text = Text::new(
             self.minecraft_directory
@@ -208,13 +232,16 @@ impl Application for RustCraft {
         )
         .size(16);
 
-        let backup_dir_button = Button::new(
+        let mut backup_dir_button = Button::new(
             &mut self.backup_dir_button,
             Text::new("Select Backup Directory"),
         )
-        .on_press(Message::BackupDirPressed)
         .padding(10)
         .width(Length::Units(250));
+
+        if !self.active_schedule {
+            backup_dir_button = backup_dir_button.on_press(Message::BackupDirPressed);
+        }
 
         let backup_dir_text = Text::new(
             self.backup_directory
@@ -222,14 +249,6 @@ impl Application for RustCraft {
                 .unwrap_or(&"No directory selected".to_string()),
         )
         .size(16);
-
-        let schedule_backup_button = Button::new(
-            &mut self.schedule_backup_button,
-            Text::new("Schedule Backup"),
-        )
-        .on_press(Message::ScheduleBackupPressed)
-        .padding(10)
-        .width(Length::Units(250));
 
         let schedule_slider = Slider::new(
             &mut self.schedule_slider,
@@ -265,25 +284,26 @@ impl Application for RustCraft {
             .push(schedule_slider)
             .push(schedule_text);
 
-        let schedule_backup_column = Column::new()
-            .padding(10)
-            .spacing(10)
-            .align_items(Alignment::Center)
-            .push(schedule_backup_button);
+        let image_path = if self.active_schedule {
+            "assets/active.png"
+        } else {
+            "assets/normal.jpeg"
+        };
 
-        // Main content layout
+        let image = Image::new(image_path).width(Length::Fill);
+
+        let image_column = Column::new()
+            .align_items(Alignment::Center)
+            .width(Length::FillPortion(1))
+            .push(image);
+
         let buttons_column = Column::new()
             .align_items(Alignment::Center)
             .spacing(20)
             .push(minecraft_dir_column)
             .push(backup_dir_column)
             .push(schedule_slider_column)
-            .push(schedule_backup_column);
-
-        let image_column = Column::new()
-            .align_items(Alignment::Center)
-            .width(Length::FillPortion(1))
-            .push(Image::new("assets/crea.jpeg").width(Length::Fill));
+            .push(control_buttons);
 
         let content = Row::new()
             .align_items(Alignment::Center)
