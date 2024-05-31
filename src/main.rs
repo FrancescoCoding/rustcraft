@@ -1,3 +1,4 @@
+use chrono::prelude::*;
 use iced::{
     button, executor, slider, widget::Image, window, window::icon::Icon, Alignment, Application,
     Button, Column, Command, Container, Element, Length, Row, Settings, Slider, Text,
@@ -6,7 +7,15 @@ use image::{io::Reader as ImageReader, GenericImageView};
 use rfd::FileDialog; // FileDialog for folder selection
 use serde_json::{json, Value};
 use std::fs;
+use std::io;
 use std::path::Path;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::thread;
+use std::thread::JoinHandle;
+use std::time::Duration;
 
 extern crate dirs;
 
@@ -72,6 +81,43 @@ fn load_configuration() -> (Option<String>, Option<String>, i32) {
     (minecraft_dir, backup_dir, backup_frequency)
 }
 
+fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
+    println!("Attempting to copy from {:?} to {:?}", src, dst);
+    let local: DateTime<Local> = Local::now();
+    let timestamp = local.format("%d.%m.%Y %H.%M").to_string(); // Ensure no illegal characters for file paths
+    let dst_with_timestamp = dst.join(&timestamp);
+    println!("Creating directory: {:?}", dst_with_timestamp);
+
+    fs::create_dir_all(&dst_with_timestamp)?;
+
+    // Recursively copy all contents from src to the new destination directory
+    copy_contents_recursively(src, src, &dst_with_timestamp)
+}
+
+/// Recursively copies contents from the source directory to the destination directory, maintaining the structure.
+fn copy_contents_recursively(base: &Path, src: &Path, dst: &Path) -> io::Result<()> {
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        // Get the relative path with respect to the base
+        let relative_path = path.strip_prefix(base).unwrap();
+        let destination_path = dst.join(relative_path);
+
+        if entry.file_type()?.is_dir() {
+            fs::create_dir_all(&destination_path)?;
+            // Recursive call to handle subdirectories
+            copy_contents_recursively(base, &path, dst)?;
+        } else {
+            if let Some(parent) = destination_path.parent() {
+                fs::create_dir_all(parent)?; // Ensure the directory exists
+            }
+            println!("Copying file {:?} to {:?}", path, destination_path);
+            fs::copy(&path, &destination_path)?;
+        }
+    }
+    Ok(())
+}
+
 #[derive(Default)]
 struct RustCraft {
     minecraft_dir_button: button::State,
@@ -83,6 +129,8 @@ struct RustCraft {
     start_button: button::State,
     stop_button: button::State,
     active_schedule: bool,
+    background_thread: Option<JoinHandle<()>>,
+    should_continue: Arc<AtomicBool>,
 }
 
 #[derive(Debug, Clone)]
@@ -94,6 +142,48 @@ enum Message {
     BackupDirectorySelected(Option<String>),
     StartPressed,
     StopPressed,
+}
+
+// Functions for managing background tasks
+impl RustCraft {
+    fn start_backup_task(&mut self) {
+        let src_dir = self.minecraft_directory.clone().unwrap();
+        let dst_dir = self.backup_directory.clone().unwrap();
+        let frequency = self.schedule_hours;
+
+        let should_continue = self.should_continue.clone();
+
+        self.background_thread = Some(thread::spawn(move || {
+            // Check if frequency is zero for a single immediate backup
+            if frequency == 0 {
+                println!("Performing a single backup...");
+                if let Err(e) = copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
+                    eprintln!("Error during file copying: {}", e);
+                }
+                println!("Single backup completed.");
+            } else {
+                // Regular scheduled backups
+                while should_continue.load(Ordering::SeqCst) {
+                    println!("Scheduled backup initiated...");
+                    if let Err(e) = copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
+                        eprintln!("Error during file copying: {}", e);
+                        break; // Exit the loop on error
+                    }
+                    println!("Backup successful, next backup in {} hours", frequency);
+                    thread::sleep(Duration::from_secs(frequency as u64 * 3600));
+                }
+            }
+        }));
+    }
+
+    fn stop_backup_task(&mut self) {
+        self.should_continue.store(false, Ordering::SeqCst);
+        if let Some(handle) = self.background_thread.take() {
+            if let Err(e) = handle.join() {
+                eprintln!("Failed to join the thread: {:?}", e);
+            }
+        }
+    }
 }
 
 impl Application for RustCraft {
@@ -183,13 +273,18 @@ impl Application for RustCraft {
                 Command::none()
             }
             Message::StartPressed => {
-                self.active_schedule = true;
-                println!("Backup schedule activated");
+                if self.minecraft_directory.is_some()
+                    && self.backup_directory.is_some()
+                    && !self.active_schedule
+                {
+                    self.start_backup_task();
+                    self.active_schedule = true;
+                }
                 Command::none()
             }
             Message::StopPressed => {
+                self.stop_backup_task();
                 self.active_schedule = false;
-                println!("Backup schedule stopped");
                 Command::none()
             }
         }

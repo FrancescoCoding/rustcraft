@@ -1,5 +1,5 @@
 {
-  "minecraft_directory": null,
-  "backup_directory": null,
-  "backup_frequency": 24
+  "backup_directory": "C:\\Users\\User\\Desktop\\Backup",
+  "backup_frequency": 0,
+  "minecraft_directory": "C:\\Users\\User\\AppData\\Roaming\\.minecraft\\saves"
 }
