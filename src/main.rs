@@ -85,7 +85,7 @@ fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
     println!("Attempting to copy from {:?} to {:?}", src, dst);
     let local: DateTime<Local> = Local::now();
     let timestamp = local.format("%d.%m.%Y %H.%M").to_string(); // Ensure no illegal characters for file paths
-    let dst_with_timestamp = dst.join(&timestamp);
+    let dst_with_timestamp = dst.join(timestamp);
     println!("Creating directory: {:?}", dst_with_timestamp);
 
     fs::create_dir_all(&dst_with_timestamp)?;
