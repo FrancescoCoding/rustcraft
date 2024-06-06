@@ -1,7 +1,7 @@
 use serde_json::{json, Value};
 use std::fs;
-use std::path::Path;
 use std::io;
+use std::path::Path;
 
 pub const CONFIG_FILE: &str = "config.json";
 
