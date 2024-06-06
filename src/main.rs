@@ -21,8 +21,10 @@ extern crate dirs;
 mod config;
 extern crate winapi;
 
+#[cfg(target_os = "windows")]
 use winapi::um::winuser::{MessageBoxW, MB_ICONINFORMATION, MB_OK, MB_SYSTEMMODAL};
 
+#[cfg(target_os = "windows")]
 fn show_system_modal_message(title: &str, message: &str) {
     let title_wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
     let message_wide: Vec<u16> = message.encode_utf16().chain(std::iter::once(0)).collect();
