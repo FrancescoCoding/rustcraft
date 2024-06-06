@@ -5,7 +5,6 @@ use iced::{
 };
 use image::{io::Reader as ImageReader, GenericImageView};
 use rfd::FileDialog; // FileDialog for folder selection
-use serde_json::{json, Value};
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -19,7 +18,7 @@ use std::time::Duration;
 
 extern crate dirs;
 
-const CONFIG_FILE: &str = "config.json";
+mod config;
 
 fn main() -> iced::Result {
     let icon_path = "assets/icon.ico";
@@ -48,37 +47,6 @@ fn load_icon(path: &str) -> Result<Icon, image::ImageError> {
     let height = img.height();
     let raw_data = rgba.into_raw();
     Ok(Icon::from_rgba(raw_data, width, height).unwrap())
-}
-
-fn save_configuration(
-    minecraft_dir: &Option<String>,
-    backup_dir: &Option<String>,
-    backup_frequency: i32,
-) -> std::io::Result<()> {
-    let data = json!({
-        "minecraft_directory": minecraft_dir,
-        "backup_directory": backup_dir,
-        "backup_frequency": backup_frequency
-    });
-    fs::write(CONFIG_FILE, serde_json::to_string_pretty(&data)?)
-}
-
-fn load_configuration() -> (Option<String>, Option<String>, i32) {
-    let path = Path::new(CONFIG_FILE);
-    let mut backup_frequency = 24; // Default backup frequency in hours
-    let (minecraft_dir, backup_dir) = if path.exists() {
-        let data = fs::read_to_string(path).unwrap();
-        let json: Value = serde_json::from_str(&data).unwrap();
-        let minecraft_dir = json["minecraft_directory"].as_str().map(String::from);
-        let backup_dir = json["backup_directory"].as_str().map(String::from);
-        if let Some(freq) = json["backup_frequency"].as_i64() {
-            backup_frequency = freq as i32;
-        }
-        (minecraft_dir, backup_dir)
-    } else {
-        (None, None)
-    };
-    (minecraft_dir, backup_dir, backup_frequency)
 }
 
 fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
@@ -192,7 +160,7 @@ impl Application for RustCraft {
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Self::Message>) {
-        let (minecraft_directory, backup_directory, schedule_hours) = load_configuration();
+        let (minecraft_directory, backup_directory, schedule_hours) = config::load_configuration();
         (
             Self {
                 minecraft_directory,
@@ -225,7 +193,7 @@ impl Application for RustCraft {
             }
             Message::ScheduleChanged(hours) => {
                 self.schedule_hours = hours;
-                if let Err(e) = save_configuration(
+                if let Err(e) = config::save_configuration(
                     &self.minecraft_directory,
                     &self.backup_directory,
                     self.schedule_hours,
@@ -249,7 +217,7 @@ impl Application for RustCraft {
             }
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
-                save_configuration(
+                config::save_configuration(
                     &self.minecraft_directory,
                     &self.backup_directory,
                     self.schedule_hours,
@@ -263,7 +231,7 @@ impl Application for RustCraft {
             }
             Message::BackupDirectorySelected(path) => {
                 self.backup_directory = path;
-                save_configuration(
+                config::save_configuration(
                     &self.minecraft_directory,
                     &self.backup_directory,
                     self.schedule_hours,
