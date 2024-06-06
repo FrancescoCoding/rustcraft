@@ -5,20 +5,37 @@ use iced::{
 };
 use image::{io::Reader as ImageReader, GenericImageView};
 use rfd::FileDialog; // FileDialog for folder selection
-use std::fs;
-use std::io;
-use std::path::Path;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-use std::thread;
-use std::thread::JoinHandle;
+use std::thread::{self, JoinHandle};
 use std::time::Duration;
+use std::{
+    fs, io,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 extern crate dirs;
 
 mod config;
+extern crate winapi;
+
+use winapi::um::winuser::{MessageBoxW, MB_ICONINFORMATION, MB_OK, MB_SYSTEMMODAL};
+
+fn show_system_modal_message(title: &str, message: &str) {
+    let title_wide: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    let message_wide: Vec<u16> = message.encode_utf16().chain(std::iter::once(0)).collect();
+
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            message_wide.as_ptr(),
+            title_wide.as_ptr(),
+            MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL,
+        );
+    }
+}
 
 fn main() -> iced::Result {
     let icon_path = "assets/icon.ico";
@@ -59,7 +76,23 @@ fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
     fs::create_dir_all(&dst_with_timestamp)?;
 
     // Recursively copy all contents from src to the new destination directory
-    copy_contents_recursively(src, src, &dst_with_timestamp)
+    let result = copy_contents_recursively(src, src, &dst_with_timestamp);
+
+    if result.is_ok() {
+        show_system_modal_message(
+            "Backup Notification",
+            "Backup done. Your Minecraft worlds have been successfully saved.",
+        );
+    } else {
+        // Log the error and notify the user
+        eprintln!("Failed to copy directory: {:?}", result);
+        show_system_modal_message(
+            "Backup Error",
+            "An error occurred during the backup process. Please check the logs for more details.",
+        );
+    }
+
+    result
 }
 
 /// Recursively copies contents from the source directory to the destination directory, maintaining the structure.
