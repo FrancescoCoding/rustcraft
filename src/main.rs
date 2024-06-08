@@ -39,6 +39,12 @@ fn show_system_modal_message(title: &str, message: &str) {
     }
 }
 
+// Log the message to stderr on non-Windows platforms
+#[cfg(not(target_os = "windows"))]
+fn show_system_modal_message(title: &str, message: &str) {
+    eprintln!("{}: {}", title, message);
+}
+
 fn main() -> iced::Result {
     let icon_path = "assets/icon.ico";
     let icon = load_icon(icon_path).expect("Failed to load icon");
