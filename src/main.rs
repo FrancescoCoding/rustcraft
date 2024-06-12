@@ -5,16 +5,7 @@ use iced::{
 };
 use image::{io::Reader as ImageReader, GenericImageView};
 use rfd::FileDialog; // FileDialog for folder selection
-use std::thread::{self, JoinHandle};
-use std::time::Duration;
-use std::{
-    fs, io,
-    path::Path,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
+use std::{fs, io, path::Path, path::PathBuf};
 
 extern crate dirs;
 
@@ -136,10 +127,8 @@ struct RustCraft {
     minecraft_directory: Option<String>,
     backup_directory: Option<String>,
     start_button: button::State,
-    stop_button: button::State,
     active_schedule: bool,
-    background_thread: Option<JoinHandle<()>>,
-    should_continue: Arc<AtomicBool>,
+    image_path: String,
 }
 
 #[derive(Debug, Clone)]
@@ -150,48 +139,17 @@ enum Message {
     MinecraftDirectorySelected(Option<String>),
     BackupDirectorySelected(Option<String>),
     StartPressed,
-    StopPressed,
+    BackupCompleted,
+    BackupError,
 }
 
-// Functions for managing background tasks
 impl RustCraft {
-    fn start_backup_task(&mut self) {
-        let src_dir = self.minecraft_directory.clone().unwrap();
-        let dst_dir = self.backup_directory.clone().unwrap();
-        let frequency = self.schedule_hours;
-
-        let should_continue = self.should_continue.clone();
-
-        self.background_thread = Some(thread::spawn(move || {
-            // Check if frequency is zero for a single immediate backup
-            if frequency == 0 {
-                println!("Performing a single backup...");
-                if let Err(e) = copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
-                    eprintln!("Error during file copying: {}", e);
-                }
-                println!("Single backup completed.");
-            } else {
-                // Regular scheduled backups
-                while should_continue.load(Ordering::SeqCst) {
-                    println!("Scheduled backup initiated...");
-                    if let Err(e) = copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
-                        eprintln!("Error during file copying: {}", e);
-                        break; // Exit the loop on error
-                    }
-                    println!("Backup successful, next backup in {} hours", frequency);
-                    thread::sleep(Duration::from_secs(frequency as u64 * 3600));
-                }
-            }
-        }));
+    fn update_image_path(&mut self, path: &str) {
+        self.image_path = path.to_string();
     }
 
-    fn stop_backup_task(&mut self) {
-        self.should_continue.store(false, Ordering::SeqCst);
-        if let Some(handle) = self.background_thread.take() {
-            if let Err(e) = handle.join() {
-                eprintln!("Failed to join the thread: {:?}", e);
-            }
-        }
+    fn get_minecraft_default_path() -> Option<PathBuf> {
+        dirs::home_dir().map(|path| path.join("AppData\\Roaming\\.minecraft\\saves"))
     }
 }
 
@@ -220,8 +178,14 @@ impl Application for RustCraft {
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::MinecraftDirPressed => {
-                let default_path = "C:\\Users\\User\\AppData\\Roaming\\.minecraft\\saves";
-                let path = FileDialog::new().set_directory(default_path).pick_folder();
+                let initial_directory = self
+                    .minecraft_directory
+                    .clone()
+                    .map(PathBuf::from)
+                    .or_else(RustCraft::get_minecraft_default_path);
+                let path = FileDialog::new()
+                    .set_directory(initial_directory.unwrap_or_else(|| PathBuf::from(".")))
+                    .pick_folder();
 
                 Command::perform(
                     async move {
@@ -244,8 +208,16 @@ impl Application for RustCraft {
                 Command::none()
             }
             Message::BackupDirPressed => {
-                let default_path = dirs::desktop_dir().expect("Failed to find desktop directory");
-                let path = FileDialog::new().set_directory(default_path).pick_folder();
+                // Check if a backup directory is already specified, otherwise default to the desktop directory
+                let initial_directory = self
+                    .backup_directory
+                    .clone()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| dirs::desktop_dir().unwrap_or_else(|| PathBuf::from(".")));
+
+                let path = FileDialog::new()
+                    .set_directory(initial_directory)
+                    .pick_folder();
 
                 Command::perform(
                     async move {
@@ -255,6 +227,34 @@ impl Application for RustCraft {
                     },
                     |p| p,
                 )
+            }
+
+            Message::StartPressed => {
+                self.active_schedule = true;
+                self.update_image_path("assets/active.png");
+
+                let src_dir = self.minecraft_directory.clone().unwrap();
+                let dst_dir = self.backup_directory.clone().unwrap();
+                Command::perform(
+                    async move { copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) },
+                    |res| {
+                        if res.is_ok() {
+                            Message::BackupCompleted
+                        } else {
+                            Message::BackupError
+                        }
+                    },
+                )
+            }
+            Message::BackupCompleted => {
+                self.active_schedule = false;
+                self.update_image_path("assets/normal.jpeg");
+                Command::none()
+            }
+            Message::BackupError => {
+                self.active_schedule = false;
+                self.update_image_path("assets/error.png");
+                Command::none()
             }
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
@@ -281,21 +281,6 @@ impl Application for RustCraft {
                 println!("Selected Backup directory: {:?}", self.backup_directory);
                 Command::none()
             }
-            Message::StartPressed => {
-                if self.minecraft_directory.is_some()
-                    && self.backup_directory.is_some()
-                    && !self.active_schedule
-                {
-                    self.start_backup_task();
-                    self.active_schedule = true;
-                }
-                Command::none()
-            }
-            Message::StopPressed => {
-                self.stop_backup_task();
-                self.active_schedule = false;
-                Command::none()
-            }
         }
     }
 
@@ -310,13 +295,7 @@ impl Application for RustCraft {
             start_button = start_button.on_press(Message::StartPressed);
         }
 
-        let mut stop_button = Button::new(&mut self.stop_button, Text::new("Stop")).padding(10);
-
-        if self.active_schedule {
-            stop_button = stop_button.on_press(Message::StopPressed);
-        }
-
-        let control_buttons = Row::new().spacing(10).push(start_button).push(stop_button);
+        let control_buttons = Row::new().spacing(10).push(start_button);
 
         let mut minecraft_dir_button = Button::new(
             &mut self.minecraft_dir_button,
@@ -363,8 +342,11 @@ impl Application for RustCraft {
         .step(1)
         .width(Length::Units(200));
 
-        let schedule_text =
-            Text::new(format!("Schedule every {} hours", self.schedule_hours)).size(16);
+        let schedule_text = if self.schedule_hours == 0 {
+            Text::new("Perform a one-time backup").size(16)
+        } else {
+            Text::new(format!("Schedule every {} hours", self.schedule_hours)).size(16)
+        };
 
         let minecraft_dir_column = Column::new()
             .spacing(10)
