@@ -5,7 +5,10 @@ use iced::{
 };
 use image::{io::Reader as ImageReader, GenericImageView};
 use rfd::FileDialog; // FileDialog for folder selection
-use std::{fs, io, path::Path, path::PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 extern crate dirs;
 
@@ -83,12 +86,10 @@ fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
             "Backup done. Your Minecraft worlds have been successfully saved.",
         );
     } else {
-        // Log the error and notify the user
-        eprintln!("Failed to copy directory: {:?}", result);
-        show_system_modal_message(
-            "Backup Error",
-            "An error occurred during the backup process. Please check the logs for more details.",
-        );
+        let err_msg = format!("Failed to copy directory: {:?}", result.unwrap_err());
+        show_system_modal_message("Backup Error", &err_msg);
+        // Return the error with details
+        return Err(io::Error::new(io::ErrorKind::Other, err_msg));
     }
 
     result
@@ -140,12 +141,17 @@ enum Message {
     BackupDirectorySelected(Option<String>),
     StartPressed,
     BackupCompleted,
-    BackupError,
+    BackupError(String),
 }
 
 impl RustCraft {
-    fn update_image_path(&mut self, path: &str) {
-        self.image_path = path.to_string();
+    fn update_image_path(&mut self, message: Message) {
+        self.image_path = match message {
+            Message::BackupCompleted => "assets/normal.jpeg".to_string(),
+            Message::BackupError(_) => "assets/error.png".to_string(),
+            Message::StartPressed => "assets/active.png".to_string(),
+            _ => self.image_path.clone(),
+        };
     }
 
     fn get_minecraft_default_path() -> Option<PathBuf> {
@@ -165,6 +171,7 @@ impl Application for RustCraft {
                 minecraft_directory,
                 backup_directory,
                 schedule_hours,
+                image_path: "assets/normal.jpeg".to_string(),
                 ..Self::default()
             },
             Command::none(),
@@ -231,31 +238,34 @@ impl Application for RustCraft {
 
             Message::StartPressed => {
                 self.active_schedule = true;
-                self.update_image_path("assets/active.png");
+                self.update_image_path(Message::StartPressed);
 
                 let src_dir = self.minecraft_directory.clone().unwrap();
                 let dst_dir = self.backup_directory.clone().unwrap();
                 Command::perform(
-                    async move { copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) },
-                    |res| {
-                        if res.is_ok() {
-                            Message::BackupCompleted
-                        } else {
-                            Message::BackupError
+                    async move {
+                        match copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
+                            Ok(_) => Message::BackupCompleted,
+                            Err(e) => Message::BackupError(e.to_string()),
                         }
                     },
+                    |res| res,
                 )
             }
+
             Message::BackupCompleted => {
                 self.active_schedule = false;
-                self.update_image_path("assets/normal.jpeg");
+                self.update_image_path(Message::BackupCompleted);
                 Command::none()
             }
-            Message::BackupError => {
+            Message::BackupError(err_msg) => {
                 self.active_schedule = false;
-                self.update_image_path("assets/error.png");
+                self.update_image_path(Message::BackupError("assets/error.png".to_string()));
+                show_system_modal_message("Backup Error", &err_msg);
+                self.image_path = "assets/error.png".to_string();
                 Command::none()
             }
+
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
                 config::save_configuration(
@@ -370,13 +380,7 @@ impl Application for RustCraft {
             .push(schedule_slider)
             .push(schedule_text);
 
-        let image_path = if self.active_schedule {
-            "assets/active.png"
-        } else {
-            "assets/normal.jpeg"
-        };
-
-        let image = Image::new(image_path).width(Length::Fill);
+        let image = Image::new(self.image_path.clone()).width(Length::Fill);
 
         let image_column = Column::new()
             .align_items(Alignment::Center)
