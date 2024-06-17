@@ -1,7 +1,12 @@
 use chrono::{DateTime, Local};
 use iced::{
-    button, executor, slider, widget::Image, window, window::Icon, Alignment, Application, Button,
-    Column, Command, Container, Element, Length, Row, Settings, Slider, Text,
+    alignment::{Horizontal, Vertical},
+    button, executor, slider,
+    time::every,
+    widget::Image,
+    window::{self, Icon},
+    Alignment, Application, Button, Column, Command, Container, Element, Length, Row, Settings,
+    Slider, Subscription, Text,
 };
 use image::{io::Reader as ImageReader, GenericImageView};
 use notify_rust::Notification;
@@ -12,7 +17,7 @@ use std::{
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, Sender},
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 mod config;
@@ -159,6 +164,8 @@ struct RustCraft {
     active_schedule: bool,
     image_path: String,
     backup_thread: Option<Sender<()>>,
+    timer_text: String,
+    last_backup_time: Option<Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -171,6 +178,7 @@ enum Message {
     StartPressed,
     BackupCompleted,
     BackupError(String),
+    Tick(Instant),
 }
 
 impl RustCraft {
@@ -187,6 +195,8 @@ impl RustCraft {
     }
 
     fn start_backup_thread(&mut self, hours: i32) {
+        self.last_backup_time = Some(Instant::now());
+
         let (tx, rx): (Sender<()>, Receiver<()>) = mpsc::channel();
         let src_dir = self.minecraft_directory.clone().unwrap();
         let dst_dir = self.backup_directory.clone().unwrap();
@@ -232,8 +242,42 @@ impl Application for RustCraft {
         String::from("RustCraft - Worlds Backup Scheduler")
     }
 
+    fn subscription(&self) -> Subscription<Self::Message> {
+        if self.active_schedule {
+            every(Duration::from_secs(1)).map(Message::Tick)
+        } else {
+            Subscription::none()
+        }
+    }
+
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
+            Message::Tick(now) => {
+                if let Some(last_backup_time) = self.last_backup_time {
+                    let elapsed = now.duration_since(last_backup_time);
+                    let seconds_since_last_backup = elapsed.as_secs();
+                    let total_seconds_for_backup = (self.schedule_hours * 3600) as u64;
+
+                    if seconds_since_last_backup >= total_seconds_for_backup {
+                        // Reset the timer if the scheduled time has elapsed
+                        self.last_backup_time = Some(now);
+                        self.timer_text = format!("{:02}:{:02}:{:02}", self.schedule_hours, 0, 0);
+                    } else {
+                        let seconds_remaining =
+                            total_seconds_for_backup - seconds_since_last_backup;
+                        let hours = seconds_remaining / 3600;
+                        let minutes = (seconds_remaining % 3600) / 60;
+                        let seconds = seconds_remaining % 60;
+                        self.timer_text = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+                    }
+                } else {
+                    // Initialize the timer if it hasn't been set
+                    self.last_backup_time = Some(now);
+                    self.timer_text = format!("{:02}:{:02}:{:02}", self.schedule_hours, 0, 0);
+                }
+                Command::none()
+            }
+
             Message::MinecraftDirPressed => {
                 let initial_directory = self
                     .minecraft_directory
@@ -455,13 +499,37 @@ impl Application for RustCraft {
             .width(Length::FillPortion(1))
             .push(image);
 
+        let timer_display: Element<Message> = if self.active_schedule {
+            if let Some(last_backup_time) = self.last_backup_time {
+                let elapsed = last_backup_time.elapsed().as_secs();
+                let next_backup_in = (self.schedule_hours * 3600) as u64 - elapsed;
+                let hours = next_backup_in / 3600;
+                let minutes = (next_backup_in % 3600) / 60;
+                let seconds = next_backup_in % 60;
+                Text::new(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
+                    .size(20)
+                    .horizontal_alignment(Horizontal::Center)
+                    .vertical_alignment(Vertical::Center)
+                    .into()
+            } else {
+                Text::new("Timer not initialized")
+                    .size(20)
+                    .horizontal_alignment(Horizontal::Center)
+                    .vertical_alignment(Vertical::Center)
+                    .into()
+            }
+        } else {
+            Text::new("").into()
+        };
+
         let buttons_column = Column::new()
             .align_items(Alignment::Center)
             .spacing(20)
             .push(minecraft_dir_column)
             .push(backup_dir_column)
             .push(schedule_slider_column)
-            .push(control_buttons);
+            .push(control_buttons)
+            .push(timer_display);
 
         let content = Row::new()
             .align_items(Alignment::Center)
