@@ -1,22 +1,26 @@
-use chrono::prelude::*;
+use chrono::{DateTime, Local};
 use iced::{
-    button, executor, slider, widget::Image, window, window::icon::Icon, Alignment, Application,
-    Button, Column, Command, Container, Element, Length, Row, Settings, Slider, Text,
+    button, executor, slider, widget::Image, window, window::Icon, Alignment, Application, Button,
+    Column, Command, Container, Element, Length, Row, Settings, Slider, Text,
 };
 use image::{io::Reader as ImageReader, GenericImageView};
+use notify_rust::Notification;
 use rfd::FileDialog; // FileDialog for folder selection
+
 use std::{
     fs, io,
     path::{Path, PathBuf},
+    sync::mpsc::{self, Receiver, Sender},
+    thread,
+    time::Duration,
 };
 
-extern crate dirs;
-
 mod config;
+extern crate dirs;
 extern crate winapi;
 
 #[cfg(target_os = "windows")]
-use winapi::um::winuser::{MessageBoxW, MB_ICONINFORMATION, MB_OK, MB_SYSTEMMODAL};
+use winapi::um::winuser::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
 
 #[cfg(target_os = "windows")]
 fn show_system_modal_message(title: &str, message: &str) {
@@ -28,7 +32,7 @@ fn show_system_modal_message(title: &str, message: &str) {
             std::ptr::null_mut(),
             message_wide.as_ptr(),
             title_wide.as_ptr(),
-            MB_OK | MB_ICONINFORMATION | MB_SYSTEMMODAL,
+            MB_OK | MB_ICONINFORMATION,
         );
     }
 }
@@ -42,6 +46,10 @@ fn show_system_modal_message(title: &str, message: &str) {
 fn main() -> iced::Result {
     let icon_path = "assets/icon.ico";
     let icon = load_icon(icon_path).expect("Failed to load icon");
+
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let dest_path = std::path::Path::new(&out_dir).join("Rustcraft.exe.manifest");
+    std::fs::copy("Rustcraft.exe.manifest", dest_path).expect("Failed to copy manifest");
 
     RustCraft::run(Settings {
         window: window::Settings {
@@ -71,7 +79,7 @@ fn load_icon(path: &str) -> Result<Icon, image::ImageError> {
 fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
     println!("Attempting to copy from {:?} to {:?}", src, dst);
     let local: DateTime<Local> = Local::now();
-    let timestamp = local.format("%d.%m.%Y %H.%M").to_string(); // Ensure no illegal characters for file paths
+    let timestamp = local.format("%d.%m.%Y %H.%M.%S").to_string(); // Ensure no illegal characters for file paths
     let dst_with_timestamp = dst.join(timestamp);
     println!("Creating directory: {:?}", dst_with_timestamp);
 
@@ -79,15 +87,11 @@ fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
 
     // Recursively copy all contents from src to the new destination directory
     let result = copy_contents_recursively(src, src, &dst_with_timestamp);
-
     if result.is_ok() {
-        show_system_modal_message(
-            "Backup Notification",
-            "Backup done. Your Minecraft worlds have been successfully saved.",
-        );
+        eprintln!("Backup completed successfully");
     } else {
         let err_msg = format!("Failed to copy directory: {:?}", result.unwrap_err());
-        show_system_modal_message("Backup Error", &err_msg);
+        eprintln!("Backup Error: {}", err_msg);
         // Return the error with details
         return Err(io::Error::new(io::ErrorKind::Other, err_msg));
     }
@@ -107,16 +111,36 @@ fn copy_contents_recursively(base: &Path, src: &Path, dst: &Path) -> io::Result<
         if entry.file_type()?.is_dir() {
             fs::create_dir_all(&destination_path)?;
             // Recursive call to handle subdirectories
-            copy_contents_recursively(base, &path, dst)?;
+            copy_contents_recursively(base, &path, &destination_path)?;
         } else {
             if let Some(parent) = destination_path.parent() {
                 fs::create_dir_all(parent)?; // Ensure the directory exists
             }
-            println!("Copying file {:?} to {:?}", path, destination_path);
+            // println!("Copying file {:?} to {:?}", path, destination_path);
             fs::copy(&path, &destination_path)?;
         }
     }
     Ok(())
+}
+
+fn trigger_notification(success: bool, error_message: Option<&str>) {
+    if success {
+        Notification::new()
+            .appname("RustCraft")
+            .summary("Backup Completed")
+            .body("Your Minecraft worlds have been successfully saved.")
+            .icon("./assets/icon.ico")
+            .show()
+            .unwrap_or_else(|e| eprintln!("Failed to show notification: {:?}", e));
+    } else if let Some(msg) = error_message {
+        Notification::new()
+            .appname("RustCraft")
+            .summary("Backup Error")
+            .body(msg)
+            .icon("./assets/error.png")
+            .show()
+            .unwrap_or_else(|e| eprintln!("Failed to show notification: {:?}", e));
+    }
 }
 
 #[derive(Default)]
@@ -130,6 +154,7 @@ struct RustCraft {
     start_button: button::State,
     active_schedule: bool,
     image_path: String,
+    backup_thread: Option<Sender<()>>,
 }
 
 #[derive(Debug, Clone)]
@@ -153,9 +178,30 @@ impl RustCraft {
             _ => self.image_path.clone(),
         };
     }
-
     fn get_minecraft_default_path() -> Option<PathBuf> {
         dirs::home_dir().map(|path| path.join("AppData\\Roaming\\.minecraft\\saves"))
+    }
+
+    fn start_backup_thread(&mut self, hours: i32) {
+        let (tx, rx): (Sender<()>, Receiver<()>) = mpsc::channel();
+        let src_dir = self.minecraft_directory.clone().unwrap();
+        let dst_dir = self.backup_directory.clone().unwrap();
+        thread::spawn(move || loop {
+            match rx.try_recv() {
+                Ok(_) | Err(mpsc::TryRecvError::Disconnected) => {
+                    break;
+                }
+                Err(mpsc::TryRecvError::Empty) => {}
+            }
+
+            if let Err(e) = copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
+                show_system_modal_message("Backup Error", &e.to_string());
+            } else {
+                trigger_notification(true, None);
+            }
+            thread::sleep(Duration::from_secs((hours * 3600) as u64)); // Convert hours to seconds
+        });
+        self.backup_thread = Some(tx);
     }
 }
 
@@ -237,20 +283,33 @@ impl Application for RustCraft {
             }
 
             Message::StartPressed => {
-                self.active_schedule = true;
-                self.update_image_path(Message::StartPressed);
-
-                let src_dir = self.minecraft_directory.clone().unwrap();
-                let dst_dir = self.backup_directory.clone().unwrap();
-                Command::perform(
-                    async move {
-                        match copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
-                            Ok(_) => Message::BackupCompleted,
-                            Err(e) => Message::BackupError(e.to_string()),
+                if self.active_schedule {
+                    if let Some(sender) = self.backup_thread.take() {
+                        let _ = sender.send(()); // Signal to stop the thread
+                    }
+                    self.active_schedule = false;
+                    self.update_image_path(Message::BackupCompleted);
+                } else if self.schedule_hours == 0 {
+                    // Perform an immediate backup without threading
+                    let src_dir = self.minecraft_directory.clone().unwrap();
+                    let dst_dir = self.backup_directory.clone().unwrap();
+                    match copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
+                        Ok(_) => {
+                            self.update_image_path(Message::BackupCompleted);
+                            trigger_notification(true, None);
                         }
-                    },
-                    |res| res,
-                )
+                        Err(e) => {
+                            let error_message = format!("Backup failed: {}", e);
+                            self.update_image_path(Message::BackupError(error_message.clone()));
+                            trigger_notification(false, Some(&error_message));
+                        }
+                    }
+                } else {
+                    self.start_backup_thread(self.schedule_hours);
+                    self.active_schedule = true;
+                    self.update_image_path(Message::StartPressed);
+                }
+                Command::none()
             }
 
             Message::BackupCompleted => {
@@ -295,12 +354,17 @@ impl Application for RustCraft {
     }
 
     fn view(&mut self) -> Element<Self::Message> {
-        let mut start_button = Button::new(&mut self.start_button, Text::new("Start")).padding(10);
+        let start_button_text = if self.active_schedule {
+            "Stop"
+        } else {
+            "Start"
+        };
+        let mut start_button =
+            Button::new(&mut self.start_button, Text::new(start_button_text)).padding(10);
 
         // Enable start button only if both directories are selected and the schedule is not active
-        if !self.active_schedule
-            && self.minecraft_directory.is_some()
-            && self.backup_directory.is_some()
+        if self.minecraft_directory.is_some() && self.backup_directory.is_some()
+            || self.active_schedule
         {
             start_button = start_button.on_press(Message::StartPressed);
         }
