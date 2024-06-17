@@ -125,21 +125,25 @@ fn copy_contents_recursively(base: &Path, src: &Path, dst: &Path) -> io::Result<
 
 fn trigger_notification(success: bool, error_message: Option<&str>) {
     if success {
-        Notification::new()
+        if let Err(e) = Notification::new()
             .appname("RustCraft")
             .summary("Backup Completed")
             .body("Your Minecraft worlds have been successfully saved.")
             .icon("./assets/icon.ico")
             .show()
-            .unwrap_or_else(|e| eprintln!("Failed to show notification: {:?}", e));
+        {
+            eprintln!("Failed to show notification: {:?}", e);
+        }
     } else if let Some(msg) = error_message {
-        Notification::new()
+        if let Err(e) = Notification::new()
             .appname("RustCraft")
             .summary("Backup Error")
             .body(msg)
             .icon("./assets/error.png")
             .show()
-            .unwrap_or_else(|e| eprintln!("Failed to show notification: {:?}", e));
+        {
+            eprintln!("Failed to show notification: {:?}", e);
+        }
     }
 }
 
