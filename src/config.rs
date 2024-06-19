@@ -20,7 +20,7 @@ pub fn save_configuration(
 
 pub fn load_configuration() -> (Option<String>, Option<String>, i32) {
     let path = Path::new(CONFIG_FILE);
-    let mut backup_frequency = 24; // Default backup frequency in hours
+    let mut backup_frequency = 0; // Default backup frequency in hours
     let (minecraft_dir, backup_dir) = if path.exists() {
         let data = fs::read_to_string(path).unwrap();
         let json: Value = serde_json::from_str(&data).unwrap();

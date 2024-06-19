@@ -2,8 +2,16 @@ use std::env;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use winresource::WindowsResource;
 
 fn main() {
+    if env::var_os("CARGO_CFG_WINDOWS").is_some() {
+        WindowsResource::new()
+            .set_icon("assets/icon.ico")
+            .compile()
+            .unwrap();
+    };
+
     // Retrieve the output directory from the environment variables set by Cargo.
     let out_dir = env::var("OUT_DIR").expect("Could not get OUT_DIR");
 

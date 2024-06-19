@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 use chrono::{DateTime, Local};
 use iced::{
     alignment::{Horizontal, Vertical},
@@ -8,9 +10,8 @@ use iced::{
     Alignment, Application, Button, Column, Command, Container, Element, Length, Row, Settings,
     Slider, Subscription, Text,
 };
-use image::{io::Reader as ImageReader, GenericImageView};
 use notify_rust::Notification;
-use rfd::FileDialog; // FileDialog for folder selection
+use rfd::FileDialog; // FileDialog for folder selection (cross-platform)
 
 use std::{
     fs, io,
@@ -20,6 +21,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod assets;
 mod config;
 extern crate dirs;
 extern crate winapi;
@@ -48,15 +50,10 @@ fn show_system_modal_message(title: &str, message: &str) {
     eprintln!("{}: {}", title, message);
 }
 
-fn main() -> iced::Result {
-    let icon_path = "assets/icon.ico";
-    let icon = load_icon(icon_path).expect("Failed to load icon");
+fn main() {
+    let icon = load_icon().expect("Failed to load icon");
 
-    let out_dir = std::env::var("OUT_DIR").unwrap();
-    let dest_path = std::path::Path::new(&out_dir).join("Rustcraft.exe.manifest");
-    std::fs::copy("Rustcraft.exe.manifest", dest_path).expect("Failed to copy manifest");
-
-    RustCraft::run(Settings {
+    let settings: Settings<()> = Settings {
         window: window::Settings {
             size: (1087, 533),
             resizable: true,
@@ -69,15 +66,19 @@ fn main() -> iced::Result {
             position: window::Position::Centered,
         },
         ..Settings::default()
-    })
+    };
+
+    if let Err(e) = RustCraft::run(settings) {
+        show_system_modal_message("Error", &format!("Failed to run RustCraft: {}", e));
+    }
 }
 
-fn load_icon(path: &str) -> Result<Icon, image::ImageError> {
-    let img = ImageReader::open(path)?.decode()?;
-    let rgba = img.to_rgba8();
+fn load_icon() -> Result<Icon, image::ImageError> {
+    let icon_data = assets::get_asset("icon.ico").expect("Icon not found in assets");
+    let img = image::load_from_memory(&icon_data)?.to_rgba8();
     let width = img.width();
     let height = img.height();
-    let raw_data = rgba.into_raw();
+    let raw_data = img.into_raw();
     Ok(Icon::from_rgba(raw_data, width, height).unwrap())
 }
 
@@ -184,7 +185,7 @@ enum Message {
 impl RustCraft {
     fn update_image_path(&mut self, message: Message) {
         self.image_path = match message {
-            Message::BackupCompleted => "assets/normal.jpeg".to_string(),
+            Message::BackupCompleted => "assets/normal.png".to_string(),
             Message::BackupError(_) => "assets/error.png".to_string(),
             Message::StartPressed => "assets/active.png".to_string(),
             _ => self.image_path.clone(),
@@ -231,7 +232,7 @@ impl Application for RustCraft {
                 minecraft_directory,
                 backup_directory,
                 schedule_hours,
-                image_path: "assets/normal.jpeg".to_string(),
+                image_path: "assets/normal.png".to_string(),
                 ..Self::default()
             },
             Command::none(),
