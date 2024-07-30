@@ -1,6 +1,5 @@
 #![windows_subsystem = "windows"]
 
-use chrono::{DateTime, Local};
 use iced::{
     alignment::{Horizontal, Vertical},
     button, executor, slider,
@@ -10,11 +9,9 @@ use iced::{
     Alignment, Application, Button, Column, Command, Container, Element, Length, Row, Settings,
     Slider, Subscription, Text,
 };
-use notify_rust::Notification;
 use rfd::FileDialog; // FileDialog for folder selection (cross-platform)
 
 use std::{
-    fs, io,
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, Sender},
     thread,
@@ -23,6 +20,8 @@ use std::{
 
 mod assets;
 mod config;
+mod file_operations;
+mod notification;
 extern crate dirs;
 extern crate winapi;
 
@@ -82,77 +81,6 @@ fn load_icon() -> Result<Icon, image::ImageError> {
     Ok(Icon::from_rgba(raw_data, width, height).unwrap())
 }
 
-fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
-    println!("Attempting to copy from {:?} to {:?}", src, dst);
-    let local: DateTime<Local> = Local::now();
-    let timestamp = local.format("%d.%m.%Y %H.%M.%S").to_string(); // Ensure no illegal characters for file paths
-    let dst_with_timestamp = dst.join(timestamp);
-    println!("Creating directory: {:?}", dst_with_timestamp);
-
-    fs::create_dir_all(&dst_with_timestamp)?;
-
-    // Recursively copy all contents from src to the new destination directory
-    let result = copy_contents_recursively(src, src, &dst_with_timestamp);
-    if result.is_ok() {
-        eprintln!("Backup completed successfully");
-    } else {
-        let err_msg = format!("Failed to copy directory: {:?}", result.unwrap_err());
-        eprintln!("Backup Error: {}", err_msg);
-        // Return the error with details
-        return Err(io::Error::new(io::ErrorKind::Other, err_msg));
-    }
-
-    result
-}
-
-/// Recursively copies contents from the source directory to the destination directory, maintaining the structure.
-fn copy_contents_recursively(base: &Path, src: &Path, dst: &Path) -> io::Result<()> {
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let path = entry.path();
-        // Get the relative path with respect to the base
-        let relative_path = path.strip_prefix(base).unwrap();
-        let destination_path = dst.join(relative_path);
-
-        if entry.file_type()?.is_dir() {
-            fs::create_dir_all(&destination_path)?;
-            // Recursive call to handle subdirectories
-            copy_contents_recursively(base, &path, &destination_path)?;
-        } else {
-            if let Some(parent) = destination_path.parent() {
-                fs::create_dir_all(parent)?; // Ensure the directory exists
-            }
-            // println!("Copying file {:?} to {:?}", path, destination_path);
-            fs::copy(&path, &destination_path)?;
-        }
-    }
-    Ok(())
-}
-
-fn trigger_notification(success: bool, error_message: Option<&str>) {
-    if success {
-        if let Err(e) = Notification::new()
-            .appname("RustCraft")
-            .summary("Backup Completed")
-            .body("Your Minecraft worlds have been successfully saved.")
-            .icon("./assets/icon.ico")
-            .show()
-        {
-            eprintln!("Failed to show notification: {:?}", e);
-        }
-    } else if let Some(msg) = error_message {
-        if let Err(e) = Notification::new()
-            .appname("RustCraft")
-            .summary("Backup Error")
-            .body(msg)
-            .icon("./assets/error.png")
-            .show()
-        {
-            eprintln!("Failed to show notification: {:?}", e);
-        }
-    }
-}
-
 #[derive(Default)]
 struct RustCraft {
     minecraft_dir_button: button::State,
@@ -209,10 +137,12 @@ impl RustCraft {
                 Err(mpsc::TryRecvError::Empty) => {}
             }
 
-            if let Err(e) = copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
+            if let Err(e) =
+                file_operations::copy_directory(Path::new(&src_dir), Path::new(&dst_dir))
+            {
                 show_system_modal_message("Backup Error", &e.to_string());
             } else {
-                trigger_notification(true, None);
+                notification::trigger_notification(true, None);
             }
             thread::sleep(Duration::from_secs((hours * 3600) as u64)); // Convert hours to seconds
         });
@@ -342,15 +272,16 @@ impl Application for RustCraft {
                     // Perform an immediate backup without threading
                     let src_dir = self.minecraft_directory.clone().unwrap();
                     let dst_dir = self.backup_directory.clone().unwrap();
-                    match copy_directory(Path::new(&src_dir), Path::new(&dst_dir)) {
+                    match file_operations::copy_directory(Path::new(&src_dir), Path::new(&dst_dir))
+                    {
                         Ok(_) => {
                             self.update_image_path(Message::BackupCompleted);
-                            trigger_notification(true, None);
+                            notification::trigger_notification(true, None);
                         }
                         Err(e) => {
                             let error_message = format!("Backup failed: {}", e);
                             self.update_image_path(Message::BackupError(error_message.clone()));
-                            trigger_notification(false, Some(&error_message));
+                            notification::trigger_notification(false, Some(&error_message));
                         }
                     }
                 } else {
