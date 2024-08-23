@@ -1,7 +1,14 @@
 #![windows_subsystem = "windows"]
 
-use iced::{alignment::{Horizontal, Vertical}, executor, time::every, widget::Image, window::{self, Icon}, Alignment, Application, Command, Element, Length, Settings, Subscription, Size, Theme};
 use iced::widget::{Button, Column, Container, Row, Slider, Text};
+use iced::{
+    alignment::{Horizontal, Vertical},
+    executor,
+    time::every,
+    widget::Image,
+    window::{self, Icon},
+    Alignment, Application, Command, Element, Length, Settings, Size, Subscription, Theme,
+};
 use rfd::FileDialog; // FileDialog for folder selection (cross-platform)
 
 use std::{
@@ -47,12 +54,18 @@ fn main() {
 
     let settings: Settings<()> = Settings {
         window: window::Settings {
-            size: Size { width: 1087f32, height: 533f32 },
+            size: Size {
+                width: 1087f32,
+                height: 533f32,
+            },
             resizable: true,
             decorations: true,
             transparent: false,
             icon: Some(icon),
-            min_size: Some(Size { width: 640f32, height: 340f32}),
+            min_size: Some(Size {
+                width: 640f32,
+                height: 360f32,
+            }),
             max_size: None,
             position: window::Position::Centered,
             ..Default::default()
@@ -321,8 +334,7 @@ impl Application for RustCraft {
         } else {
             "Start"
         };
-        let mut start_button =
-            Button::new(Text::new(start_button_text)).padding(10);
+        let mut start_button = Button::new(Text::new(start_button_text)).padding(10);
 
         // Enable start button only if both directories are selected and the schedule is not active
         if self.minecraft_directory.is_some() && self.backup_directory.is_some()
@@ -333,11 +345,9 @@ impl Application for RustCraft {
 
         let control_buttons = Row::new().spacing(10).push(start_button);
 
-        let mut minecraft_dir_button = Button::new(
-            Text::new("Select Minecraft Directory"),
-        )
-        .padding(10)
-        .width(Length::Fixed(250f32));
+        let mut minecraft_dir_button = Button::new(Text::new("Select Minecraft Directory"))
+            .padding(10)
+            .width(Length::Fixed(250f32));
 
         if !self.active_schedule {
             minecraft_dir_button = minecraft_dir_button.on_press(Message::MinecraftDirPressed);
@@ -346,15 +356,14 @@ impl Application for RustCraft {
         let minecraft_dir_text = Text::new(
             self.minecraft_directory
                 .as_ref()
-                .unwrap_or(&"No directory selected".to_string()).clone()
+                .unwrap_or(&"No directory selected".to_string())
+                .clone(),
         )
         .size(16);
 
-        let mut backup_dir_button = Button::new(
-            Text::new("Select Backup Directory"),
-        )
-        .padding(10)
-        .width(Length::Fixed(250f32));
+        let mut backup_dir_button = Button::new(Text::new("Select Backup Directory"))
+            .padding(10)
+            .width(Length::Fixed(250f32));
 
         if !self.active_schedule {
             backup_dir_button = backup_dir_button.on_press(Message::BackupDirPressed);
@@ -363,17 +372,14 @@ impl Application for RustCraft {
         let backup_dir_text = Text::new(
             self.backup_directory
                 .as_ref()
-                .unwrap_or(&"No directory selected".to_string()).clone()
+                .unwrap_or(&"No directory selected".to_string())
+                .clone(),
         )
         .size(16);
 
-        let schedule_slider = Slider::new(
-            0..=24,
-            self.schedule_hours,
-            Message::ScheduleChanged,
-        )
-        .step(1)
-        .width(Length::Fixed(200f32));
+        let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
+            .step(1)
+            .width(Length::Fixed(200f32));
 
         let schedule_text = if self.schedule_hours == 0 {
             Text::new("Perform a one-time backup").size(16)
