@@ -25,6 +25,13 @@ mod notification;
 extern crate dirs;
 extern crate winapi;
 
+mod styling {
+    pub mod button_styles;
+    pub mod slider_styles;
+}
+use styling::button_styles;
+use styling::slider_styles;
+
 #[cfg(target_os = "windows")]
 use winapi::um::winuser::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
 
@@ -70,6 +77,7 @@ fn main() {
             position: window::Position::Centered,
             ..Default::default()
         },
+
         ..Settings::default()
     };
 
@@ -203,7 +211,6 @@ impl Application for RustCraft {
                 }
                 Command::none()
             }
-
             Message::MinecraftDirPressed => {
                 let initial_directory = self
                     .minecraft_directory
@@ -225,6 +232,15 @@ impl Application for RustCraft {
             }
             Message::ScheduleChanged(hours) => {
                 self.schedule_hours = hours;
+
+                // If hours is 0 and there is an active schedule, send a signal to stop the backup thread and deactivate the schedule.
+                if hours == 0 && self.active_schedule {
+                    if let Some(sender) = self.backup_thread.take() {
+                        let _ = sender.send(());
+                        self.active_schedule = false;
+                    }
+                }
+
                 if let Err(e) = config::save_configuration(
                     &self.minecraft_directory,
                     &self.backup_directory,
@@ -255,7 +271,6 @@ impl Application for RustCraft {
                     |p| p,
                 )
             }
-
             Message::StartPressed => {
                 if self.active_schedule {
                     if let Some(sender) = self.backup_thread.take() {
@@ -299,7 +314,6 @@ impl Application for RustCraft {
                 self.image_path = "assets/error.png".to_string();
                 Command::none()
             }
-
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
                 config::save_configuration(
@@ -334,7 +348,10 @@ impl Application for RustCraft {
         } else {
             "Start"
         };
-        let mut start_button = Button::new(Text::new(start_button_text)).padding(10);
+
+        let mut start_button = Button::new(Text::new(start_button_text))
+            .padding(10)
+            .style(button_styles::MinecraftButton);
 
         // Enable start button only if both directories are selected and the schedule is not active
         if self.minecraft_directory.is_some() && self.backup_directory.is_some()
@@ -347,7 +364,8 @@ impl Application for RustCraft {
 
         let mut minecraft_dir_button = Button::new(Text::new("Select Minecraft Directory"))
             .padding(10)
-            .width(Length::Fixed(250f32));
+            .width(Length::Fixed(250f32))
+            .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             minecraft_dir_button = minecraft_dir_button.on_press(Message::MinecraftDirPressed);
@@ -363,7 +381,8 @@ impl Application for RustCraft {
 
         let mut backup_dir_button = Button::new(Text::new("Select Backup Directory"))
             .padding(10)
-            .width(Length::Fixed(250f32));
+            .width(Length::Fixed(250f32))
+            .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             backup_dir_button = backup_dir_button.on_press(Message::BackupDirPressed);
@@ -379,7 +398,8 @@ impl Application for RustCraft {
 
         let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
             .step(1)
-            .width(Length::Fixed(200f32));
+            .width(Length::Fixed(200f32))
+            .style(slider_styles::MinecraftSlider);
 
         let schedule_text = if self.schedule_hours == 0 {
             Text::new("Perform a one-time backup").size(16)
