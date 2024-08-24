@@ -1,13 +1,13 @@
 #![windows_subsystem = "windows"]
 
+use iced::widget::{Button, Column, Container, Row, Slider, Text};
 use iced::{
     alignment::{Horizontal, Vertical},
-    button, executor, slider,
+    executor,
     time::every,
     widget::Image,
     window::{self, Icon},
-    Alignment, Application, Button, Column, Command, Container, Element, Length, Row, Settings,
-    Slider, Subscription, Text,
+    Alignment, Application, Command, Element, Length, Settings, Size, Subscription, Theme,
 };
 use rfd::FileDialog; // FileDialog for folder selection (cross-platform)
 
@@ -24,6 +24,13 @@ mod file_operations;
 mod notification;
 extern crate dirs;
 extern crate winapi;
+
+mod styling {
+    pub mod button_styles;
+    pub mod slider_styles;
+}
+use styling::button_styles;
+use styling::slider_styles;
 
 #[cfg(target_os = "windows")]
 use winapi::um::winuser::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
@@ -54,16 +61,23 @@ fn main() {
 
     let settings: Settings<()> = Settings {
         window: window::Settings {
-            size: (1087, 533),
+            size: Size {
+                width: 1087f32,
+                height: 533f32,
+            },
             resizable: true,
             decorations: true,
             transparent: false,
-            always_on_top: false,
             icon: Some(icon),
-            min_size: Some((640, 360)),
+            min_size: Some(Size {
+                width: 640f32,
+                height: 360f32,
+            }),
             max_size: None,
             position: window::Position::Centered,
+            ..Default::default()
         },
+
         ..Settings::default()
     };
 
@@ -78,18 +92,14 @@ fn load_icon() -> Result<Icon, image::ImageError> {
     let width = img.width();
     let height = img.height();
     let raw_data = img.into_raw();
-    Ok(Icon::from_rgba(raw_data, width, height).unwrap())
+    Ok(window::icon::from_rgba(raw_data, width, height).unwrap())
 }
 
 #[derive(Default)]
 struct RustCraft {
-    minecraft_dir_button: button::State,
-    backup_dir_button: button::State,
-    schedule_slider: slider::State,
     schedule_hours: i32,
     minecraft_directory: Option<String>,
     backup_directory: Option<String>,
-    start_button: button::State,
     active_schedule: bool,
     image_path: String,
     backup_thread: Option<Sender<()>>,
@@ -153,6 +163,7 @@ impl RustCraft {
 impl Application for RustCraft {
     type Executor = executor::Default;
     type Message = Message;
+    type Theme = Theme;
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Self::Message>) {
@@ -171,14 +182,6 @@ impl Application for RustCraft {
 
     fn title(&self) -> String {
         String::from("RustCraft - Worlds Backup Scheduler")
-    }
-
-    fn subscription(&self) -> Subscription<Self::Message> {
-        if self.active_schedule {
-            every(Duration::from_secs(1)).map(Message::Tick)
-        } else {
-            Subscription::none()
-        }
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
@@ -208,7 +211,6 @@ impl Application for RustCraft {
                 }
                 Command::none()
             }
-
             Message::MinecraftDirPressed => {
                 let initial_directory = self
                     .minecraft_directory
@@ -230,6 +232,15 @@ impl Application for RustCraft {
             }
             Message::ScheduleChanged(hours) => {
                 self.schedule_hours = hours;
+
+                // If hours is 0 and there is an active schedule, send a signal to stop the backup thread and deactivate the schedule.
+                if hours == 0 && self.active_schedule {
+                    if let Some(sender) = self.backup_thread.take() {
+                        let _ = sender.send(());
+                        self.active_schedule = false;
+                    }
+                }
+
                 if let Err(e) = config::save_configuration(
                     &self.minecraft_directory,
                     &self.backup_directory,
@@ -260,7 +271,6 @@ impl Application for RustCraft {
                     |p| p,
                 )
             }
-
             Message::StartPressed => {
                 if self.active_schedule {
                     if let Some(sender) = self.backup_thread.take() {
@@ -304,7 +314,6 @@ impl Application for RustCraft {
                 self.image_path = "assets/error.png".to_string();
                 Command::none()
             }
-
             Message::MinecraftDirectorySelected(path) => {
                 self.minecraft_directory = path;
                 config::save_configuration(
@@ -333,14 +342,16 @@ impl Application for RustCraft {
         }
     }
 
-    fn view(&mut self) -> Element<Self::Message> {
+    fn view(&self) -> Element<Self::Message> {
         let start_button_text = if self.active_schedule {
             "Stop"
         } else {
             "Start"
         };
-        let mut start_button =
-            Button::new(&mut self.start_button, Text::new(start_button_text)).padding(10);
+
+        let mut start_button = Button::new(Text::new(start_button_text))
+            .padding(10)
+            .style(button_styles::MinecraftButton);
 
         // Enable start button only if both directories are selected and the schedule is not active
         if self.minecraft_directory.is_some() && self.backup_directory.is_some()
@@ -351,12 +362,10 @@ impl Application for RustCraft {
 
         let control_buttons = Row::new().spacing(10).push(start_button);
 
-        let mut minecraft_dir_button = Button::new(
-            &mut self.minecraft_dir_button,
-            Text::new("Select Minecraft Directory"),
-        )
-        .padding(10)
-        .width(Length::Units(250));
+        let mut minecraft_dir_button = Button::new(Text::new("Select Minecraft Directory"))
+            .padding(10)
+            .width(Length::Fixed(250f32))
+            .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             minecraft_dir_button = minecraft_dir_button.on_press(Message::MinecraftDirPressed);
@@ -365,16 +374,15 @@ impl Application for RustCraft {
         let minecraft_dir_text = Text::new(
             self.minecraft_directory
                 .as_ref()
-                .unwrap_or(&"No directory selected".to_string()),
+                .unwrap_or(&"No directory selected".to_string())
+                .clone(),
         )
         .size(16);
 
-        let mut backup_dir_button = Button::new(
-            &mut self.backup_dir_button,
-            Text::new("Select Backup Directory"),
-        )
-        .padding(10)
-        .width(Length::Units(250));
+        let mut backup_dir_button = Button::new(Text::new("Select Backup Directory"))
+            .padding(10)
+            .width(Length::Fixed(250f32))
+            .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             backup_dir_button = backup_dir_button.on_press(Message::BackupDirPressed);
@@ -383,18 +391,15 @@ impl Application for RustCraft {
         let backup_dir_text = Text::new(
             self.backup_directory
                 .as_ref()
-                .unwrap_or(&"No directory selected".to_string()),
+                .unwrap_or(&"No directory selected".to_string())
+                .clone(),
         )
         .size(16);
 
-        let schedule_slider = Slider::new(
-            &mut self.schedule_slider,
-            0..=24,
-            self.schedule_hours,
-            Message::ScheduleChanged,
-        )
-        .step(1)
-        .width(Length::Units(200));
+        let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
+            .step(1)
+            .width(Length::Fixed(200f32))
+            .style(slider_styles::MinecraftSlider);
 
         let schedule_text = if self.schedule_hours == 0 {
             Text::new("Perform a one-time backup").size(16)
@@ -475,5 +480,13 @@ impl Application for RustCraft {
             .center_x()
             .center_y()
             .into()
+    }
+
+    fn subscription(&self) -> Subscription<Self::Message> {
+        if self.active_schedule {
+            every(Duration::from_secs(1)).map(Message::Tick)
+        } else {
+            Subscription::none()
+        }
     }
 }
