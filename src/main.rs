@@ -1,5 +1,6 @@
 #![windows_subsystem = "windows"]
 
+use iced::font::{self, Font};
 use iced::widget::{Button, Column, Container, Row, Slider, Text};
 use iced::{
     alignment::{Horizontal, Vertical},
@@ -26,11 +27,20 @@ extern crate dirs;
 extern crate winapi;
 
 mod styling {
+    pub mod _general_styles;
     pub mod button_styles;
     pub mod slider_styles;
 }
+use styling::_general_styles::text_sizes;
 use styling::button_styles;
 use styling::slider_styles;
+
+pub const MONOCRAFT: Font = Font {
+    family: font::Family::Name("Monocraft"),
+    weight: font::Weight::Normal,
+    stretch: font::Stretch::Normal,
+    style: font::Style::Normal,
+};
 
 #[cfg(target_os = "windows")]
 use winapi::um::winuser::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
@@ -118,6 +128,7 @@ enum Message {
     BackupCompleted,
     BackupError(String),
     Tick(Instant),
+    FontLoaded(Result<(), font::Error>),
 }
 
 impl RustCraft {
@@ -176,7 +187,10 @@ impl Application for RustCraft {
                 image_path: "assets/normal.png".to_string(),
                 ..Self::default()
             },
-            Command::none(),
+            Command::batch(vec![font::load(
+                include_bytes!("../fonts/Monocraft.ttc").as_slice(),
+            )
+            .map(Message::FontLoaded)]),
         )
     }
 
@@ -339,6 +353,8 @@ impl Application for RustCraft {
                 println!("Selected Backup directory: {:?}", self.backup_directory);
                 Command::none()
             }
+
+            _ => Command::none(),
         }
     }
 
@@ -349,7 +365,7 @@ impl Application for RustCraft {
             "Start"
         };
 
-        let mut start_button = Button::new(Text::new(start_button_text))
+        let mut start_button = Button::new(Text::new(start_button_text).font(MONOCRAFT))
             .padding(10)
             .style(button_styles::MinecraftButton);
 
@@ -362,10 +378,14 @@ impl Application for RustCraft {
 
         let control_buttons = Row::new().spacing(10).push(start_button);
 
-        let mut minecraft_dir_button = Button::new(Text::new("Select Minecraft Directory"))
-            .padding(10)
-            .width(Length::Fixed(250f32))
-            .style(button_styles::MinecraftButton);
+        let mut minecraft_dir_button = Button::new(
+            Text::new("Select Minecraft Directory")
+                .font(MONOCRAFT)
+                .size(text_sizes::PRIMARY),
+        )
+        .padding(10)
+        .width(Length::Fixed(370f32))
+        .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             minecraft_dir_button = minecraft_dir_button.on_press(Message::MinecraftDirPressed);
@@ -377,12 +397,17 @@ impl Application for RustCraft {
                 .unwrap_or(&"No directory selected".to_string())
                 .clone(),
         )
-        .size(16);
+        .font(MONOCRAFT)
+        .size(text_sizes::SECONDARY);
 
-        let mut backup_dir_button = Button::new(Text::new("Select Backup Directory"))
-            .padding(10)
-            .width(Length::Fixed(250f32))
-            .style(button_styles::MinecraftButton);
+        let mut backup_dir_button = Button::new(
+            Text::new("Select Backup Directory")
+                .font(MONOCRAFT)
+                .size(text_sizes::PRIMARY),
+        )
+        .padding(10)
+        .width(Length::Fixed(370f32))
+        .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             backup_dir_button = backup_dir_button.on_press(Message::BackupDirPressed);
@@ -394,7 +419,8 @@ impl Application for RustCraft {
                 .unwrap_or(&"No directory selected".to_string())
                 .clone(),
         )
-        .size(16);
+        .font(MONOCRAFT)
+        .size(text_sizes::SECONDARY);
 
         let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
             .step(1)
@@ -402,9 +428,13 @@ impl Application for RustCraft {
             .style(slider_styles::MinecraftSlider);
 
         let schedule_text = if self.schedule_hours == 0 {
-            Text::new("Perform a one-time backup").size(16)
+            Text::new("Perform a one-time backup")
+                .font(MONOCRAFT)
+                .size(text_sizes::SECONDARY)
         } else {
-            Text::new(format!("Schedule every {} hours", self.schedule_hours)).size(16)
+            Text::new(format!("Schedule every {} hours", self.schedule_hours))
+                .font(MONOCRAFT)
+                .size(text_sizes::SECONDARY)
         };
 
         let minecraft_dir_column = Column::new()
@@ -425,16 +455,9 @@ impl Application for RustCraft {
             .padding(10)
             .spacing(10)
             .align_items(Alignment::Center)
-            .push(Text::new("Select Backup Frequency"))
+            .push(Text::new("Select Backup Frequency").font(MONOCRAFT))
             .push(schedule_slider)
             .push(schedule_text);
-
-        let image = Image::new(self.image_path.clone()).width(Length::Fill);
-
-        let image_column = Column::new()
-            .align_items(Alignment::Center)
-            .width(Length::FillPortion(1))
-            .push(image);
 
         let timer_display: Element<Message> = if self.active_schedule {
             if let Some(last_backup_time) = self.last_backup_time {
@@ -450,6 +473,7 @@ impl Application for RustCraft {
                     .into()
             } else {
                 Text::new("Timer not initialized")
+                    .font(MONOCRAFT)
                     .size(20)
                     .horizontal_alignment(Horizontal::Center)
                     .vertical_alignment(Vertical::Center)
@@ -459,9 +483,17 @@ impl Application for RustCraft {
             Text::new("").into()
         };
 
+        let image = Image::new(self.image_path.clone()).width(Length::Fill);
+
+        let image_column = Column::new()
+            .align_items(Alignment::Center)
+            .width(Length::FillPortion(1))
+            .push(image);
+
         let buttons_column = Column::new()
             .align_items(Alignment::Center)
             .spacing(20)
+            .padding(20)
             .push(minecraft_dir_column)
             .push(backup_dir_column)
             .push(schedule_slider_column)
