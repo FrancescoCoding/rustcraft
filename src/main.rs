@@ -27,9 +27,11 @@ extern crate dirs;
 extern crate winapi;
 
 mod styling {
+    pub mod _general_styles;
     pub mod button_styles;
     pub mod slider_styles;
 }
+use styling::_general_styles::text_sizes;
 use styling::button_styles;
 use styling::slider_styles;
 
@@ -379,7 +381,7 @@ impl Application for RustCraft {
         let mut minecraft_dir_button = Button::new(
             Text::new("Select Minecraft Directory")
                 .font(MONOCRAFT)
-                .size(20),
+                .size(text_sizes::PRIMARY),
         )
         .padding(10)
         .width(Length::Fixed(370f32))
@@ -396,12 +398,12 @@ impl Application for RustCraft {
                 .clone(),
         )
         .font(MONOCRAFT)
-        .size(18);
+        .size(text_sizes::SECONDARY);
 
         let mut backup_dir_button = Button::new(
             Text::new("Select Backup Directory")
                 .font(MONOCRAFT)
-                .size(20),
+                .size(text_sizes::PRIMARY),
         )
         .padding(10)
         .width(Length::Fixed(370f32))
@@ -418,7 +420,7 @@ impl Application for RustCraft {
                 .clone(),
         )
         .font(MONOCRAFT)
-        .size(18);
+        .size(text_sizes::SECONDARY);
 
         let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
             .step(1)
@@ -428,11 +430,11 @@ impl Application for RustCraft {
         let schedule_text = if self.schedule_hours == 0 {
             Text::new("Perform a one-time backup")
                 .font(MONOCRAFT)
-                .size(18)
+                .size(text_sizes::SECONDARY)
         } else {
             Text::new(format!("Schedule every {} hours", self.schedule_hours))
                 .font(MONOCRAFT)
-                .size(18)
+                .size(text_sizes::SECONDARY)
         };
 
         let minecraft_dir_column = Column::new()
@@ -456,13 +458,6 @@ impl Application for RustCraft {
             .push(Text::new("Select Backup Frequency").font(MONOCRAFT))
             .push(schedule_slider)
             .push(schedule_text);
-
-        let image = Image::new(self.image_path.clone()).width(Length::Fill);
-
-        let image_column = Column::new()
-            .align_items(Alignment::Center)
-            .width(Length::FillPortion(1))
-            .push(image);
 
         let timer_display: Element<Message> = if self.active_schedule {
             if let Some(last_backup_time) = self.last_backup_time {
@@ -488,9 +483,17 @@ impl Application for RustCraft {
             Text::new("").into()
         };
 
+        let image = Image::new(self.image_path.clone()).width(Length::Fill);
+
+        let image_column = Column::new()
+            .align_items(Alignment::Center)
+            .width(Length::FillPortion(1))
+            .push(image);
+
         let buttons_column = Column::new()
             .align_items(Alignment::Center)
             .spacing(20)
+            .padding(20)
             .push(minecraft_dir_column)
             .push(backup_dir_column)
             .push(schedule_slider_column)
