@@ -1,6 +1,6 @@
-
 #![windows_subsystem = "windows"]
 
+use iced::font::{self, Font};
 use iced::widget::{Button, Column, Container, Row, Slider, Text};
 use iced::{
     alignment::{Horizontal, Vertical},
@@ -11,7 +11,6 @@ use iced::{
     Alignment, Application, Command, Element, Length, Settings, Size, Subscription, Theme,
 };
 use rfd::FileDialog; // FileDialog for folder selection (cross-platform)
-use iced::font::{self, Font};
 
 use std::{
     path::{Path, PathBuf},
@@ -186,7 +185,10 @@ impl Application for RustCraft {
                 image_path: "assets/normal.png".to_string(),
                 ..Self::default()
             },
-            Command::batch(vec![font::load(include_bytes!("../fonts/Monocraft.ttc").as_slice()).map(Message::FontLoaded)])
+            Command::batch(vec![font::load(
+                include_bytes!("../fonts/Monocraft.ttc").as_slice(),
+            )
+            .map(Message::FontLoaded)]),
         )
     }
 
@@ -331,7 +333,7 @@ impl Application for RustCraft {
                     &self.backup_directory,
                     self.schedule_hours,
                 )
-                    .unwrap();
+                .unwrap();
                 println!(
                     "Selected Minecraft directory: {:?}",
                     self.minecraft_directory
@@ -345,7 +347,7 @@ impl Application for RustCraft {
                     &self.backup_directory,
                     self.schedule_hours,
                 )
-                    .unwrap();
+                .unwrap();
                 println!("Selected Backup directory: {:?}", self.backup_directory);
                 Command::none()
             }
@@ -374,10 +376,14 @@ impl Application for RustCraft {
 
         let control_buttons = Row::new().spacing(10).push(start_button);
 
-        let mut minecraft_dir_button = Button::new(Text::new("Select Minecraft Directory").font(MONOCRAFT).size(20))
-            .padding(10)
-            .width(Length::Fixed(370f32))
-            .style(button_styles::MinecraftButton);
+        let mut minecraft_dir_button = Button::new(
+            Text::new("Select Minecraft Directory")
+                .font(MONOCRAFT)
+                .size(20),
+        )
+        .padding(10)
+        .width(Length::Fixed(370f32))
+        .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             minecraft_dir_button = minecraft_dir_button.on_press(Message::MinecraftDirPressed);
@@ -388,13 +394,18 @@ impl Application for RustCraft {
                 .as_ref()
                 .unwrap_or(&"No directory selected".to_string())
                 .clone(),
-        ).font(MONOCRAFT)
-            .size(18);
+        )
+        .font(MONOCRAFT)
+        .size(18);
 
-        let mut backup_dir_button = Button::new(Text::new("Select Backup Directory").font(MONOCRAFT).size(20))
-            .padding(10)
-            .width(Length::Fixed(370f32))
-            .style(button_styles::MinecraftButton);
+        let mut backup_dir_button = Button::new(
+            Text::new("Select Backup Directory")
+                .font(MONOCRAFT)
+                .size(20),
+        )
+        .padding(10)
+        .width(Length::Fixed(370f32))
+        .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
             backup_dir_button = backup_dir_button.on_press(Message::BackupDirPressed);
@@ -405,8 +416,9 @@ impl Application for RustCraft {
                 .as_ref()
                 .unwrap_or(&"No directory selected".to_string())
                 .clone(),
-        ).font(MONOCRAFT)
-            .size(18);
+        )
+        .font(MONOCRAFT)
+        .size(18);
 
         let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
             .step(1)
@@ -414,9 +426,13 @@ impl Application for RustCraft {
             .style(slider_styles::MinecraftSlider);
 
         let schedule_text = if self.schedule_hours == 0 {
-            Text::new("Perform a one-time backup").font(MONOCRAFT).size(18)
+            Text::new("Perform a one-time backup")
+                .font(MONOCRAFT)
+                .size(18)
         } else {
-            Text::new(format!("Schedule every {} hours", self.schedule_hours)).font(MONOCRAFT).size(18)
+            Text::new(format!("Schedule every {} hours", self.schedule_hours))
+                .font(MONOCRAFT)
+                .size(18)
         };
 
         let minecraft_dir_column = Column::new()
