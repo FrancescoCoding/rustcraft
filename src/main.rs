@@ -374,9 +374,9 @@ impl Application for RustCraft {
 
         let control_buttons = Row::new().spacing(10).push(start_button);
 
-        let mut minecraft_dir_button = Button::new(Text::new("Select Minecraft Directory").font(MONOCRAFT).size(16))
+        let mut minecraft_dir_button = Button::new(Text::new("Select Minecraft Directory").font(MONOCRAFT).size(20))
             .padding(10)
-            .width(Length::Fixed(310f32))
+            .width(Length::Fixed(370f32))
             .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
@@ -389,11 +389,11 @@ impl Application for RustCraft {
                 .unwrap_or(&"No directory selected".to_string())
                 .clone(),
         ).font(MONOCRAFT)
-            .size(16);
+            .size(18);
 
-        let mut backup_dir_button = Button::new(Text::new("Select Backup Directory").font(MONOCRAFT))
+        let mut backup_dir_button = Button::new(Text::new("Select Backup Directory").font(MONOCRAFT).size(20))
             .padding(10)
-            .width(Length::Fixed(310f32))
+            .width(Length::Fixed(370f32))
             .style(button_styles::MinecraftButton);
 
         if !self.active_schedule {
@@ -406,7 +406,7 @@ impl Application for RustCraft {
                 .unwrap_or(&"No directory selected".to_string())
                 .clone(),
         ).font(MONOCRAFT)
-            .size(16);
+            .size(18);
 
         let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
             .step(1)
@@ -414,9 +414,9 @@ impl Application for RustCraft {
             .style(slider_styles::MinecraftSlider);
 
         let schedule_text = if self.schedule_hours == 0 {
-            Text::new("Perform a one-time backup").font(MONOCRAFT).size(16)
+            Text::new("Perform a one-time backup").font(MONOCRAFT).size(18)
         } else {
-            Text::new(format!("Schedule every {} hours", self.schedule_hours)).font(MONOCRAFT).size(16)
+            Text::new(format!("Schedule every {} hours", self.schedule_hours)).font(MONOCRAFT).size(18)
         };
 
         let minecraft_dir_column = Column::new()
