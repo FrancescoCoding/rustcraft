@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use iced::font::{self, Font};
-use iced::widget::{Button, Column, Container, Row, Slider, Space, Text};
+use iced::widget::{Button, Column, Container, Row, Slider, Text};
 use iced::Color;
 use iced::{
     alignment::{Horizontal, Vertical},
