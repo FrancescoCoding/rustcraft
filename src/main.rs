@@ -1,10 +1,11 @@
 #![windows_subsystem = "windows"]
 
 use iced::font::{self, Font};
-use iced::widget::{Button, Column, Container, Row, Slider, Text};
+use iced::widget::{Button, Column, Container, Row, Slider, Space, Text};
+use iced::Color;
 use iced::{
     alignment::{Horizontal, Vertical},
-    executor,
+    executor, theme,
     time::every,
     widget::Image,
     window::{self, Icon},
@@ -75,13 +76,13 @@ fn main() {
                 width: 1087f32,
                 height: 533f32,
             },
-            resizable: true,
+            resizable: false,
             decorations: true,
             transparent: false,
             icon: Some(icon),
             min_size: Some(Size {
-                width: 640f32,
-                height: 360f32,
+                width: 1020f32,
+                height: 584f32,
             }),
             max_size: None,
             position: window::Position::Centered,
@@ -115,6 +116,7 @@ struct RustCraft {
     backup_thread: Option<Sender<()>>,
     timer_text: String,
     last_backup_time: Option<Instant>,
+    dark_theme: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -129,9 +131,14 @@ enum Message {
     BackupError(String),
     Tick(Instant),
     FontLoaded(Result<(), font::Error>),
+    ToggleTheme,
 }
 
 impl RustCraft {
+    fn toggle_theme(&mut self) {
+        self.dark_theme = !self.dark_theme;
+    }
+
     fn update_image_path(&mut self, message: Message) {
         self.image_path = match message {
             Message::BackupCompleted => "assets/normal.png".to_string(),
@@ -354,11 +361,31 @@ impl Application for RustCraft {
                 Command::none()
             }
 
+            Message::ToggleTheme => {
+                self.toggle_theme();
+                Command::none()
+            }
+
             _ => Command::none(),
         }
     }
 
     fn view(&self) -> Element<Self::Message> {
+        let theme_toggle_button: Button<Message> = Button::new(
+            Text::new(if self.dark_theme {
+                "Switch to Light Theme"
+            } else {
+                "Switch to Dark Theme"
+            })
+            .font(MONOCRAFT)
+            .size(text_sizes::SECONDARY)
+            .horizontal_alignment(Horizontal::Center),
+        )
+        .padding(10)
+        .on_press(Message::ToggleTheme)
+        .width(Length::Fill)
+        .style(button_styles::MinecraftButton);
+
         let start_button_text = if self.active_schedule {
             "Stop"
         } else {
@@ -500,11 +527,17 @@ impl Application for RustCraft {
             .push(control_buttons)
             .push(timer_display);
 
-        let content = Row::new()
-            .align_items(Alignment::Center)
-            .spacing(20)
-            .push(image_column)
-            .push(buttons_column.width(Length::FillPortion(1)));
+        let top_row = Row::new()
+            .spacing(10)
+            // .push(Space::with_width(Length::Fill)) // This pushes the button to the right
+            .push(theme_toggle_button);
+
+        let content = Column::new().push(top_row).push(
+            Row::new()
+                .align_items(Alignment::Center)
+                .push(image_column.width(Length::FillPortion(1)))
+                .push(buttons_column.width(Length::FillPortion(1))),
+        );
 
         Container::new(content)
             .width(Length::Fill)
@@ -512,6 +545,30 @@ impl Application for RustCraft {
             .center_x()
             .center_y()
             .into()
+    }
+
+    fn theme(&self) -> Theme {
+        if self.dark_theme {
+            Theme::custom(
+                "Dark Theme".to_string(),
+                theme::Palette {
+                    background: Color::from_rgb8(50, 43, 56),
+                    text: Color::WHITE,
+                    primary: Color::from_rgb8(139, 131, 143),
+                    ..theme::Palette::DARK
+                },
+            )
+        } else {
+            Theme::custom(
+                "Light Theme".to_string(),
+                theme::Palette {
+                    background: Color::WHITE,
+                    text: Color::BLACK,
+                    primary: Color::from_rgb8(0x3a, 0x7a, 0x3a),
+                    ..theme::Palette::LIGHT
+                },
+            )
+        }
     }
 
     fn subscription(&self) -> Subscription<Self::Message> {
