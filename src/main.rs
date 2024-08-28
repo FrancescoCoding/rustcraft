@@ -1,7 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use iced::font::{self, Font};
-use iced::widget::{Button, Column, Container, Row, Slider, Text};
+use iced::widget::{Button, Column, Container, Row, Slider, Space, Text};
 use iced::Color;
 use iced::{
     alignment::{Horizontal, Vertical},
@@ -383,8 +383,12 @@ impl Application for RustCraft {
         )
         .padding(10)
         .on_press(Message::ToggleTheme)
-        .width(Length::Fill)
         .style(button_styles::MinecraftButton);
+
+        let top_row = Row::new()
+            .spacing(10)
+            .push(Space::with_width(Length::Fill)) // This pushes the button to the right
+            .push(theme_toggle_button);
 
         let start_button_text = if self.active_schedule {
             "Stop"
@@ -526,11 +530,6 @@ impl Application for RustCraft {
             .push(schedule_slider_column)
             .push(control_buttons)
             .push(timer_display);
-
-        let top_row = Row::new()
-            .spacing(10)
-            // .push(Space::with_width(Length::Fill)) // This pushes the button to the right
-            .push(theme_toggle_button);
 
         let content = Column::new().push(top_row).push(
             Row::new()
