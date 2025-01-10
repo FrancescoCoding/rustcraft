@@ -3,7 +3,7 @@
 RustCraft is a badly-named but hopefully useful Minecraft worlds backup scheduler for Windows built with [Rust](https://www.rust-lang.org/) & [iced](https://github.com/iced-rs/iced). While it's primarily designed for backing up Minecraft worlds, it can be used to backup any files or directories, making it a versatile tool for your backup needs.
 
 > [!NOTE]  
-> In the unpredictable world of Minecraft, it's crucial to safeguard your creations. Imagine spending countless hours building intricate structures, amassing rare resources, and crafting your unique world, only to lose everything to a sudden in-game disaster, like a fire spreading uncontrollably (personal experience), a Creeper explosion, or an unexpected update that corrupts your save files. This is especially important if you play with mods, as they can introduce additional instability and risk. Your Minecraft saves are continuously evolving, reflecting your creativity and hard work. RustCraft ensures that these precious files are always backed up, giving you peace of mind and allowing you to focus on what you do best: building and exploring.
+> In the unpredictable world of Minecraft, it's crucial to safeguard your creations. Imagine spending countless hours building intricate structures, or crafting your unique home, only to lose everything to a sudden in-game disaster, like a fire spreading uncontrollably, a Creeper explosion, or an unexpected update that corrupts your save files (mods users iykyk 💀). Your Minecraft saves are continuously evolving, reflecting your creativity and hard work. RustCraft ensures that these precious files are always backed up, giving you peace of mind and allowing you to focus on what you do best: building and exploring.
 
 ## Features ✨
 
@@ -11,7 +11,7 @@ RustCraft is a badly-named but hopefully useful Minecraft worlds backup schedule
 - **Manual Backup Option**: Perform a one-time backup of your Minecraft worlds (by setting the frequency scrollbar to 0).
 - **Directory Selection**: Easily select the Minecraft directory and the backup destination directory using a graphical interface. The `AppData\Roaming\.minecraft\saves` folder, which contains Minecraft saves, is set as the default when you open the dialog.
 - **Notifications**: Receive system notifications upon successful backups or errors.
-- **Windows Compatibility**: Works on Windows operating systems.
+- **Windows Compatibility**: Works on all Windows operating systems.
 
 <p align="center">
   <img src="https://github.com/FrancescoCoding/rustcraft/assets/64712227/789ca7e4-a842-4630-9e22-84b6d12fbbc9" alt="drawing" width="760px" align="center" />
@@ -45,9 +45,10 @@ If you encounter any issues or have concerns, please reach out to me through [Gi
 
 ## Next Features 🛠️
 
-I am continuously working to improve RustCraft. The next features I will focus on include:
+I am continuously working on RustCraft, depending on features requests or time. The next features I will focus on include:
 
-- **Backup from SFTP**: Enable users to backup their Minecraft worlds from an SFTP server.
-- **Backup to Drive**: Allow users to backup their Minecraft worlds directly to cloud storage services.
+- **Linux Compatibility**: ![70%](https://progress-bar.xyz/70) A lot of Minecraft servers run on Linux, and most of the app is pre-built with this in mind. Still needs some work.
+- **Backup to Drive**: ![20%](https://progress-bar.xyz/20) Allow users to backup their Minecraft worlds directly to cloud storage services.
+- **Backup from SFTP**: ![0%](https://progress-bar.xyz/0) Enable users to backup their Minecraft worlds from an SFTP server.
 
 Thank you for your understanding and support!
