@@ -3,7 +3,7 @@
 RustCraft is a badly-named but hopefully useful Minecraft worlds backup scheduler for Windows built with [Rust](https://www.rust-lang.org/) & [iced](https://github.com/iced-rs/iced). While it's primarily designed for backing up Minecraft worlds, it can be used to backup any files or directories, making it a versatile tool for your backup needs.
 
 > [!NOTE]  
-> In the unpredictable world of Minecraft, it's crucial to safeguard your creations. Imagine spending countless hours building intricate structures, or crafting your unique home, only to lose everything to a sudden in-game disaster, like a fire spreading uncontrollably, a Creeper explosion, or an unexpected update that corrupts your save files (mods users iykyk 💀). Your Minecraft saves are continuously evolving, reflecting your creativity and hard work. RustCraft ensures that these precious files are always backed up, giving you peace of mind and allowing you to focus on what you do best: building and exploring.
+> In the unpredictable world of Minecraft, it's crucial to safeguard your creations. Imagine spending countless hours building intricate structures, or crafting your unique home, only to lose everything to a sudden in-game disaster. Your Minecraft saves are continuously evolving, reflecting your creativity and hard work. RustCraft ensures that these precious files are always backed up.
 
 ## Features ✨
 
