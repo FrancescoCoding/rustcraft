@@ -1,4 +1,4 @@
-# <img src="https://wiki.bedrock.dev/assets/images/concepts/emojis/items/crafting_table.png" /> RustCraft
+RustCraft
 
 RustCraft is a badly-named but hopefully useful Minecraft worlds backup scheduler for Windows built with [Rust](https://www.rust-lang.org/) & [iced](https://github.com/iced-rs/iced). While it's primarily designed for backing up Minecraft worlds, it can be used to backup any files or directories, making it a versatile tool for your backup needs.
 
