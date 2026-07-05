@@ -1,6 +1,6 @@
 name: Release
 
-# Publish a GitHub Release with the built Windows binary whenever a version
+# Publish a GitHub Release with built Windows binaries whenever a version
 # tag (e.g. v1.2.3) is pushed.
 on:
   push:
@@ -15,24 +15,56 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  release:
-    name: Build & Release (Windows)
+  build:
+    name: Build ${{ matrix.name }}
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            name: windows-x86_64
+          - target: i686-pc-windows-msvc
+            name: windows-x86
+          - target: aarch64-pc-windows-msvc
+            name: windows-arm64
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release --locked
+        run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Stage binary
         shell: bash
         run: |
           mkdir -p dist
-          cp target/release/rustcraft.exe "dist/rustcraft-${GITHUB_REF_NAME}-windows-x86_64.exe"
+          cp "target/${{ matrix.target }}/release/rustcraft.exe" \
+             "dist/rustcraft-${GITHUB_REF_NAME}-${{ matrix.name }}.exe"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustcraft-${{ matrix.name }}
+          path: dist/*.exe
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
