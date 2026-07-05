@@ -1,7 +1,8 @@
 #![windows_subsystem = "windows"]
 
 use iced::font::{self, Font};
-use iced::widget::{Button, Column, Container, Row, Slider, Space, Text};
+use iced::widget::tooltip::{Position as TooltipPosition, Tooltip};
+use iced::widget::{image::Handle as ImageHandle, Button, Column, Container, Row, Slider, Text};
 use iced::Color;
 use iced::{
     alignment::{Horizontal, Vertical},
@@ -70,30 +71,47 @@ fn show_system_modal_message(title: &str, message: &str) {
 fn main() {
     let icon = load_icon().expect("Failed to load icon");
 
-    let settings: Settings<()> = Settings {
-        window: window::Settings {
-            size: Size {
-                width: 1087f32,
-                height: 533f32,
-            },
-            resizable: false,
-            decorations: true,
-            transparent: false,
-            icon: Some(icon),
-            min_size: Some(Size {
-                width: 1020f32,
-                height: 584f32,
-            }),
-            max_size: None,
-            position: window::Position::Centered,
-            ..Default::default()
+    let window_settings = window::Settings {
+        // Height matches the rendered image exactly (square image at half the
+        // window width), so no empty bars appear above or below it.
+        size: Size {
+            width: 1087f32,
+            height: 543.5f32,
         },
+        resizable: false,
+        decorations: true,
+        transparent: false,
+        icon: Some(icon),
+        min_size: None,
+        max_size: None,
+        position: window::Position::Centered,
+        ..Default::default()
+    };
 
+    let settings = Settings {
+        window: window_settings,
         ..Settings::default()
     };
 
     if let Err(e) = RustCraft::run(settings) {
         show_system_modal_message("Error", &format!("Failed to run RustCraft: {}", e));
+    }
+}
+
+// Load an embedded asset as an iced image, so the app works regardless of
+// the working directory it is launched from.
+fn asset_image(name: &str) -> Image<ImageHandle> {
+    let data = assets::get_asset(name).unwrap_or_else(|| panic!("Asset not found: {}", name));
+    Image::new(ImageHandle::from_memory(data))
+}
+
+// Shorten a filesystem path for display, keeping the last two components.
+fn truncate_path(path: &str) -> String {
+    let components: Vec<&str> = path.split('\\').collect();
+    if components.len() > 3 {
+        format!("...\\{}", components[components.len() - 2..].join("\\"))
+    } else {
+        path.to_string()
     }
 }
 
@@ -141,9 +159,9 @@ impl RustCraft {
 
     fn update_image_path(&mut self, message: Message) {
         self.image_path = match message {
-            Message::BackupCompleted => "assets/normal.png".to_string(),
-            Message::BackupError(_) => "assets/error.png".to_string(),
-            Message::StartPressed => "assets/active.png".to_string(),
+            Message::BackupCompleted => "normal.png".to_string(),
+            Message::BackupError(_) => "error.png".to_string(),
+            Message::StartPressed => "active.png".to_string(),
             _ => self.image_path.clone(),
         };
     }
@@ -185,13 +203,15 @@ impl Application for RustCraft {
     type Flags = ();
 
     fn new(_flags: ()) -> (Self, Command<Self::Message>) {
-        let (minecraft_directory, backup_directory, schedule_hours) = config::load_configuration();
+        let (minecraft_directory, backup_directory, schedule_hours, dark_theme) =
+            config::load_configuration();
         (
             Self {
                 minecraft_directory,
                 backup_directory,
                 schedule_hours,
-                image_path: "assets/normal.png".to_string(),
+                dark_theme,
+                image_path: "normal.png".to_string(),
                 ..Self::default()
             },
             Command::batch(vec![font::load(
@@ -266,6 +286,7 @@ impl Application for RustCraft {
                     &self.minecraft_directory,
                     &self.backup_directory,
                     self.schedule_hours,
+                    self.dark_theme,
                 ) {
                     println!("Error saving configuration: {}", e);
                 }
@@ -341,6 +362,7 @@ impl Application for RustCraft {
                     &self.minecraft_directory,
                     &self.backup_directory,
                     self.schedule_hours,
+                    self.dark_theme,
                 )
                 .unwrap();
                 println!(
@@ -355,6 +377,7 @@ impl Application for RustCraft {
                     &self.minecraft_directory,
                     &self.backup_directory,
                     self.schedule_hours,
+                    self.dark_theme,
                 )
                 .unwrap();
                 println!("Selected Backup directory: {:?}", self.backup_directory);
@@ -363,6 +386,15 @@ impl Application for RustCraft {
 
             Message::ToggleTheme => {
                 self.toggle_theme();
+                // Persist the theme choice across restarts
+                if let Err(e) = config::save_configuration(
+                    &self.minecraft_directory,
+                    &self.backup_directory,
+                    self.schedule_hours,
+                    self.dark_theme,
+                ) {
+                    println!("Error saving configuration: {}", e);
+                }
                 Command::none()
             }
 
@@ -370,25 +402,32 @@ impl Application for RustCraft {
         }
     }
 
-    fn view(&self) -> Element<Self::Message> {
-        let theme_toggle_button: Button<Message> = Button::new(
-            Text::new(if self.dark_theme {
-                "Switch to Light Theme"
+    fn view(&self) -> Element<'_, Self::Message> {
+        let theme_toggle_button = Button::new(
+            asset_image(if self.dark_theme {
+                "_sun.png"
             } else {
-                "Switch to Dark Theme"
+                "_moon.png"
+            })
+            .width(Length::Fixed(42.0))
+            .height(Length::Fixed(42.0)),
+        )
+        .padding(8)
+        .on_press(Message::ToggleTheme)
+        .style(button_styles::TransparentButton);
+
+        let theme_toggle = Tooltip::new(
+            theme_toggle_button,
+            Text::new(if self.dark_theme {
+                "Switch to light theme"
+            } else {
+                "Switch to dark theme"
             })
             .font(MONOCRAFT)
-            .size(text_sizes::SECONDARY)
-            .horizontal_alignment(Horizontal::Center),
+            .size(text_sizes::SECONDARY),
+            TooltipPosition::Left,
         )
-        .padding(10)
-        .on_press(Message::ToggleTheme)
-        .style(button_styles::MinecraftButton);
-
-        let top_row = Row::new()
-            .spacing(10)
-            .push(Space::with_width(Length::Fill)) // This pushes the button to the right
-            .push(theme_toggle_button);
+        .style(theme::Container::Box);
 
         let start_button_text = if self.active_schedule {
             "Stop"
@@ -422,14 +461,24 @@ impl Application for RustCraft {
             minecraft_dir_button = minecraft_dir_button.on_press(Message::MinecraftDirPressed);
         }
 
-        let minecraft_dir_text = Text::new(
-            self.minecraft_directory
-                .as_ref()
-                .unwrap_or(&"No directory selected".to_string())
-                .clone(),
-        )
-        .font(MONOCRAFT)
-        .size(text_sizes::SECONDARY);
+        // Show a truncated path to keep the layout tidy; the full path is in a tooltip
+        let minecraft_dir_text: Element<Message> = match &self.minecraft_directory {
+            Some(path) => Tooltip::new(
+                Text::new(truncate_path(path))
+                    .font(MONOCRAFT)
+                    .size(text_sizes::SECONDARY),
+                Text::new(path.clone())
+                    .font(MONOCRAFT)
+                    .size(text_sizes::SECONDARY),
+                TooltipPosition::Bottom,
+            )
+            .style(theme::Container::Box)
+            .into(),
+            None => Text::new("No directory selected")
+                .font(MONOCRAFT)
+                .size(text_sizes::SECONDARY)
+                .into(),
+        };
 
         let mut backup_dir_button = Button::new(
             Text::new("Select Backup Directory")
@@ -444,14 +493,23 @@ impl Application for RustCraft {
             backup_dir_button = backup_dir_button.on_press(Message::BackupDirPressed);
         }
 
-        let backup_dir_text = Text::new(
-            self.backup_directory
-                .as_ref()
-                .unwrap_or(&"No directory selected".to_string())
-                .clone(),
-        )
-        .font(MONOCRAFT)
-        .size(text_sizes::SECONDARY);
+        let backup_dir_text: Element<Message> = match &self.backup_directory {
+            Some(path) => Tooltip::new(
+                Text::new(truncate_path(path))
+                    .font(MONOCRAFT)
+                    .size(text_sizes::SECONDARY),
+                Text::new(path.clone())
+                    .font(MONOCRAFT)
+                    .size(text_sizes::SECONDARY),
+                TooltipPosition::Bottom,
+            )
+            .style(theme::Container::Box)
+            .into(),
+            None => Text::new("No directory selected")
+                .font(MONOCRAFT)
+                .size(text_sizes::SECONDARY)
+                .into(),
+        };
 
         let schedule_slider = Slider::new(0..=24, self.schedule_hours, Message::ScheduleChanged)
             .step(1)
@@ -498,7 +556,8 @@ impl Application for RustCraft {
                 let minutes = (next_backup_in % 3600) / 60;
                 let seconds = next_backup_in % 60;
                 Text::new(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
-                    .size(20)
+                    .size(text_sizes::SECONDARY)
+                    .font(MONOCRAFT)
                     .horizontal_alignment(Horizontal::Center)
                     .vertical_alignment(Vertical::Center)
                     .into()
@@ -514,7 +573,7 @@ impl Application for RustCraft {
             Text::new("").into()
         };
 
-        let image = Image::new(self.image_path.clone()).width(Length::Fill);
+        let image = asset_image(&self.image_path).width(Length::Fill);
 
         let image_column = Column::new()
             .align_items(Alignment::Center)
@@ -531,18 +590,37 @@ impl Application for RustCraft {
             .push(control_buttons)
             .push(timer_display);
 
-        let content = Column::new().push(top_row).push(
-            Row::new()
-                .align_items(Alignment::Center)
-                .push(image_column.width(Length::FillPortion(1)))
-                .push(buttons_column.width(Length::FillPortion(1))),
-        );
+        // Float the theme toggle in the top-right corner of the right column,
+        // so the main content keeps the full window height.
+        let right_column = Column::new()
+            .width(Length::FillPortion(1))
+            .height(Length::Fill)
+            .push(
+                Container::new(theme_toggle)
+                    .width(Length::Fill)
+                    .align_x(Horizontal::Right)
+                    .padding([8, 8, 0, 0]),
+            )
+            .push(
+                Container::new(buttons_column)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x()
+                    .center_y(),
+            );
 
-        Container::new(content)
+        let main_row = Row::new()
+            .push(
+                Container::new(image_column)
+                    .width(Length::FillPortion(1))
+                    .height(Length::Fill)
+                    .center_y(),
+            )
+            .push(right_column);
+
+        Container::new(main_row)
             .width(Length::Fill)
             .height(Length::Fill)
-            .center_x()
-            .center_y()
             .into()
     }
 
@@ -551,9 +629,10 @@ impl Application for RustCraft {
             Theme::custom(
                 "Dark Theme".to_string(),
                 theme::Palette {
-                    background: Color::from_rgb8(50, 43, 56),
-                    text: Color::WHITE,
-                    primary: Color::from_rgb8(139, 131, 143),
+                    // Deep neutral charcoal — lets the green accents pop
+                    background: Color::from_rgb8(24, 26, 30),
+                    text: Color::from_rgb8(235, 235, 235),
+                    primary: Color::from_rgb8(0x3a, 0x7a, 0x3a),
                     ..theme::Palette::DARK
                 },
             )
@@ -561,6 +640,7 @@ impl Application for RustCraft {
             Theme::custom(
                 "Light Theme".to_string(),
                 theme::Palette {
+                    // Sky blue, like a clear Minecraft day
                     background: Color::WHITE,
                     text: Color::BLACK,
                     primary: Color::from_rgb8(0x3a, 0x7a, 0x3a),

@@ -11,17 +11,18 @@ pub fn copy_directory(src: &Path, dst: &Path) -> io::Result<()> {
     fs::create_dir_all(&dst_with_timestamp)?;
 
     // Recursively copy all contents from src to the new destination directory
-    let result = copy_contents_recursively(src, src, &dst_with_timestamp);
-    if result.is_ok() {
-        eprintln!("Backup completed successfully");
-    } else {
-        let err_msg = format!("Failed to copy directory: {:?}", result.unwrap_err());
-        eprintln!("Backup Error: {}", err_msg);
-        // Return the error with details
-        return Err(io::Error::new(io::ErrorKind::Other, err_msg));
+    match copy_contents_recursively(src, src, &dst_with_timestamp) {
+        Ok(()) => {
+            eprintln!("Backup completed successfully");
+            Ok(())
+        }
+        Err(e) => {
+            let err_msg = format!("Failed to copy directory: {:?}", e);
+            eprintln!("Backup Error: {}", err_msg);
+            // Return the error with details
+            Err(io::Error::other(err_msg))
+        }
     }
-
-    result
 }
 
 /// Recursively copies contents from the source directory to the destination directory, maintaining the structure.

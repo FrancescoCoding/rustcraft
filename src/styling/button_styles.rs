@@ -1,5 +1,9 @@
 use iced::border::Radius;
-use iced::{theme, widget::button, Background, Border, Color, Shadow, Vector};
+use iced::{
+    theme,
+    widget::{button, container},
+    Background, Border, Color, Shadow, Vector,
+};
 
 pub struct MinecraftButton;
 
@@ -42,5 +46,56 @@ impl button::StyleSheet for MinecraftButton {
 impl From<MinecraftButton> for theme::Button {
     fn from(_: MinecraftButton) -> Self {
         theme::Button::Custom(Box::new(MinecraftButton))
+    }
+}
+
+pub struct TransparentButton;
+
+impl button::StyleSheet for TransparentButton {
+    type Style = theme::Theme;
+
+    fn active(&self, _style: &Self::Style) -> button::Appearance {
+        button::Appearance {
+            background: Some(Background::Color(Color::TRANSPARENT)),
+            border: Border::default(),
+            shadow: Shadow::default(),
+            text_color: Color::WHITE,
+            ..Default::default()
+        }
+    }
+
+    fn hovered(&self, _style: &Self::Style) -> button::Appearance {
+        self.active(_style)
+    }
+
+    fn pressed(&self, _style: &Self::Style) -> button::Appearance {
+        self.active(_style)
+    }
+}
+
+impl From<TransparentButton> for theme::Button {
+    fn from(_: TransparentButton) -> Self {
+        theme::Button::Custom(Box::new(TransparentButton))
+    }
+}
+
+pub struct OverlayContainer;
+
+impl container::StyleSheet for OverlayContainer {
+    type Style = theme::Theme;
+
+    fn appearance(&self, _style: &Self::Style) -> container::Appearance {
+        container::Appearance {
+            background: None,
+            border: Border::default(),
+            shadow: Shadow::default(),
+            text_color: None,
+        }
+    }
+}
+
+impl From<OverlayContainer> for theme::Container {
+    fn from(_: OverlayContainer) -> Self {
+        theme::Container::Custom(Box::new(OverlayContainer))
     }
 }
