@@ -1,0 +1,44 @@
+name: Release
+
+# Publish a GitHub Release with the built Windows binary whenever a version
+# tag (e.g. v1.2.3) is pushed.
+on:
+  push:
+    tags:
+      - "v*"
+
+# Allow the github-actions[bot] to create releases and upload assets.
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Build & Release (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Stage binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/rustcraft.exe "dist/rustcraft-${GITHUB_REF_NAME}-windows-x86_64.exe"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # Auto-generate release notes from merged PRs / commits since the last tag.
+          generate_release_notes: true
+          files: dist/*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

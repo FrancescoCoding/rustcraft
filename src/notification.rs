@@ -4,7 +4,7 @@ pub fn trigger_notification(success: bool, error_message: Option<&str>) {
     if success {
         if let Err(e) = Notification::new()
             .appname("RustCraft")
-            .summary("Backup Completed")
+            .summary("RustCraft - Backup Completed") //remove
             .body("Your Minecraft worlds have been successfully saved.")
             .icon("./assets/icon.ico")
             .show()
@@ -14,7 +14,7 @@ pub fn trigger_notification(success: bool, error_message: Option<&str>) {
     } else if let Some(msg) = error_message {
         if let Err(e) = Notification::new()
             .appname("RustCraft")
-            .summary("Backup Error")
+            .summary("RustCraft - Backup Error") //remove
             .body(msg)
             .icon("./assets/error.png")
             .show()

@@ -9,18 +9,21 @@ pub fn save_configuration(
     minecraft_dir: &Option<String>,
     backup_dir: &Option<String>,
     backup_frequency: i32,
+    dark_theme: bool,
 ) -> io::Result<()> {
     let data = json!({
         "minecraft_directory": minecraft_dir,
         "backup_directory": backup_dir,
-        "backup_frequency": backup_frequency
+        "backup_frequency": backup_frequency,
+        "dark_theme": dark_theme
     });
     fs::write(CONFIG_FILE, serde_json::to_string_pretty(&data)?)
 }
 
-pub fn load_configuration() -> (Option<String>, Option<String>, i32) {
+pub fn load_configuration() -> (Option<String>, Option<String>, i32, bool) {
     let path = Path::new(CONFIG_FILE);
     let mut backup_frequency = 0; // Default backup frequency in hours
+    let mut dark_theme = false;
     let (minecraft_dir, backup_dir) = if path.exists() {
         let data = fs::read_to_string(path).unwrap();
         let json: Value = serde_json::from_str(&data).unwrap();
@@ -29,9 +32,12 @@ pub fn load_configuration() -> (Option<String>, Option<String>, i32) {
         if let Some(freq) = json["backup_frequency"].as_i64() {
             backup_frequency = freq as i32;
         }
+        if let Some(dark) = json["dark_theme"].as_bool() {
+            dark_theme = dark;
+        }
         (minecraft_dir, backup_dir)
     } else {
         (None, None)
     };
-    (minecraft_dir, backup_dir, backup_frequency)
+    (minecraft_dir, backup_dir, backup_frequency, dark_theme)
 }
