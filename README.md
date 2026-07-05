@@ -14,7 +14,7 @@ RustCraft is a badly-named but hopefully useful Minecraft worlds backup schedule
 - **Windows Compatibility**: Works on all Windows operating systems.
 
 <p align="center">
-  <img src="https://github.com/FrancescoCoding/rustcraft/assets/64712227/789ca7e4-a842-4630-9e22-84b6d12fbbc9" alt="drawing" width="760px" align="center" />
+  <img width="760px" align="center" alt="rustcraft" src="https://github.com/user-attachments/assets/faee048d-e1f7-4eb1-ab4d-b857b1f8340d" />
 </p>
 
 ## Usage 📖
